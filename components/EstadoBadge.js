@@ -6,6 +6,11 @@ const ESTADOS = {
     label: "Verificando",
     className: "bg-huellitas-accent/10 text-huellitas-accent-dark",
   },
+  validando: {
+    label: "Validando",
+    className: "bg-huellitas-accent/10 text-huellitas-accent-dark",
+  },
+  verificado: { label: "Verificado", className: "bg-sky-50 text-sky-700" },
   pendiente: { label: "Pendiente", className: "bg-stone-100 text-stone-600" },
   retirado: { label: "Retirado", className: "bg-stone-100 text-stone-600" },
   culminado: { label: "Culminado", className: "bg-stone-100 text-stone-600" },

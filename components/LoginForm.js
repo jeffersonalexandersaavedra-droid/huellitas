@@ -1,12 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { login } from "@/app/login/actions";
 
 export default function LoginForm() {
-  const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -16,48 +14,37 @@ export default function LoginForm() {
     setError("");
     setLoading(true);
 
-    const supabase = createClient();
-    const { data, error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const formData = new FormData();
+    formData.set("identifier", identifier);
+    formData.set("password", password);
 
-    if (signInError) {
-      setError("Correo o contraseña incorrectos. Verifica tus datos.");
+    const result = await login(formData);
+
+    // Si login() tuvo éxito, ya redirigió y esta línea no se alcanza.
+    if (result?.error) {
+      setError(result.error);
       setLoading(false);
-      return;
     }
-
-    if (data.user?.app_metadata?.role !== "admin") {
-      await supabase.auth.signOut();
-      setError(
-        "Esta cuenta aún no tiene acceso al sistema. Comunícate con la administración."
-      );
-      setLoading(false);
-      return;
-    }
-
-    router.push("/admin/dashboard");
-    router.refresh();
   }
 
   return (
     <form onSubmit={handleSubmit} className="w-full space-y-4">
       <div>
         <label
-          htmlFor="email"
+          htmlFor="identifier"
           className="mb-1 block text-sm font-medium text-stone-700"
         >
-          Correo electrónico
+          Correo electrónico o DNI del hijo
         </label>
         <input
-          id="email"
-          name="email"
-          type="email"
+          id="identifier"
+          name="identifier"
+          type="text"
           required
-          autoComplete="email"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
+          autoComplete="username"
+          placeholder="admin@huellitas.pe o 76543210"
+          value={identifier}
+          onChange={(event) => setIdentifier(event.target.value)}
           className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20"
         />
       </div>

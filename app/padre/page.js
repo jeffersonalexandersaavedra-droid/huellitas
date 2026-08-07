@@ -1,59 +1,77 @@
-"use client";
+import { createClient } from "@/lib/supabase/server";
+import PadreDashboard from "@/components/PadreDashboard";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Construction, MessageCircle } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+export default async function PadrePage() {
+  const supabase = await createClient();
 
-const WHATSAPP_ADMIN = "https://wa.me/51950617019";
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-export default function PadrePage() {
-  const router = useRouter();
-  const [loading, setLoading] = useState(false);
+  const { data: apoderado } = await supabase
+    .from("apoderados")
+    .select("id, nombres, apellidos, password_cambiado")
+    .eq("user_id", user.id)
+    .maybeSingle();
 
-  async function handleLogout() {
-    setLoading(true);
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push("/");
-    router.refresh();
+  const { data: vinculo } = await supabase
+    .from("estudiante_apoderado")
+    .select("estudiante_id, estudiantes(id, nombres, apellidos)")
+    .eq("apoderado_id", apoderado?.id ?? "")
+    .limit(1)
+    .maybeSingle();
+
+  if (!apoderado || !vinculo) {
+    return (
+      <div className="rounded-xl bg-white p-8 text-center shadow-sm">
+        <p className="text-sm text-huellitas-ink/70">
+          No encontramos información de tu hijo. Comunícate con
+          administración.
+        </p>
+      </div>
+    );
   }
 
+  const estudiante = vinculo.estudiantes;
+
+  const { data: matricula } = await supabase
+    .from("matriculas")
+    .select("id, aulas(nombre, nivel), anios_escolares(anio)")
+    .eq("estudiante_id", estudiante.id)
+    .maybeSingle();
+
+  if (!matricula) {
+    return (
+      <div className="rounded-xl bg-white p-8 text-center shadow-sm">
+        <p className="text-sm text-huellitas-ink/70">
+          Tu hijo no tiene una matrícula activa este año. Comunícate con
+          administración.
+        </p>
+      </div>
+    );
+  }
+
+  const { data: cuotas } = await supabase
+    .from("cuotas")
+    .select(
+      "id, mes, monto, monto_con_descuento, fecha_vencimiento, estado, conceptos_cobro(nombre, tipo)"
+    )
+    .eq("matricula_id", matricula.id)
+    .order("mes", { ascending: true });
+
+  const { data: notas } = await supabase
+    .from("notas_curso")
+    .select("id, curso, bimestre, nota, comentario")
+    .eq("matricula_id", matricula.id)
+    .order("bimestre", { ascending: true });
+
   return (
-    <div className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-sm">
-      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-huellitas-primary-light text-huellitas-accent-dark">
-        <Construction className="h-8 w-8" strokeWidth={2} />
-      </div>
-
-      <h1 className="mt-5 font-display text-2xl font-semibold text-huellitas-primary">
-        Portal en construcción
-      </h1>
-
-      <p className="mt-3 text-sm text-huellitas-ink/70">
-        Muy pronto podrás consultar los pagos y notas de tu hijo.
-        Comunícate con la administración para cualquier consulta.
-      </p>
-
-      <div className="mt-6 flex flex-col gap-3">
-        <a
-          href={WHATSAPP_ADMIN}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center justify-center gap-2 rounded-lg bg-huellitas-accent px-4 py-2.5 text-sm font-medium text-huellitas-ink transition-colors hover:bg-huellitas-accent-dark hover:text-white"
-        >
-          <MessageCircle className="h-4 w-4" strokeWidth={2} />
-          WhatsApp administración
-        </a>
-
-        <button
-          type="button"
-          onClick={handleLogout}
-          disabled={loading}
-          className="rounded-lg border border-huellitas-primary px-4 py-2.5 text-sm font-medium text-huellitas-primary transition-colors hover:bg-huellitas-primary-light disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {loading ? "Cerrando sesión..." : "Cerrar sesión"}
-        </button>
-      </div>
-    </div>
+    <PadreDashboard
+      apoderado={apoderado}
+      estudiante={estudiante}
+      matricula={matricula}
+      cuotas={cuotas ?? []}
+      notas={notas ?? []}
+    />
   );
 }

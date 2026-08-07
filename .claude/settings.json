@@ -13,7 +13,9 @@
       "Bash(curl -s http://localhost:3000/ -o /tmp/home4.html -w \"home: %{http_code}\\\\n\")",
       "Bash(curl -s http://localhost:3000/ -o /tmp/home5.html -w \"home: %{http_code}\\\\n\")",
       "Bash(curl -s http://localhost:3000/login -o /tmp/login5.html -w \"login: %{http_code}\\\\n\")",
-      "Bash(curl -s http://localhost:3000/padre -o /tmp/padre5.html -w \"padre \\(debe 307 redirect sin sesion\\): %{http_code}\\\\n\")"
+      "Bash(curl -s http://localhost:3000/padre -o /tmp/padre5.html -w \"padre \\(debe 307 redirect sin sesion\\): %{http_code}\\\\n\")",
+      "Bash(curl -s http://localhost:3000/login -o /tmp/login6.html -w \"login: %{http_code}\\\\n\")",
+      "Bash(curl -s -o /dev/null -w \"padre sin sesion \\(esperado 307\\): %{http_code}\\\\n\" http://localhost:3000/padre)"
     ]
   }
 }
