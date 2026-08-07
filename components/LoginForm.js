@@ -23,14 +23,16 @@ export default function LoginForm() {
     });
 
     if (signInError) {
-      setError("Correo o contraseña incorrectos.");
+      setError("Correo o contraseña incorrectos. Verifica tus datos.");
       setLoading(false);
       return;
     }
 
     if (data.user?.app_metadata?.role !== "admin") {
       await supabase.auth.signOut();
-      setError("Esta cuenta no tiene permisos de administrador.");
+      setError(
+        "Esta cuenta aún no tiene acceso al sistema. Comunícate con la administración."
+      );
       setLoading(false);
       return;
     }
@@ -79,6 +81,15 @@ export default function LoginForm() {
         />
       </div>
 
+      <div className="text-right">
+        <button
+          type="button"
+          className="text-xs font-medium text-huellitas-accent-dark hover:underline"
+        >
+          ¿Olvidaste tu contraseña?
+        </button>
+      </div>
+
       {error && (
         <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
           {error}
@@ -88,17 +99,10 @@ export default function LoginForm() {
       <button
         type="submit"
         disabled={loading}
-        className="w-full rounded-lg bg-huellitas-primary px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-huellitas-primary-dark disabled:cursor-not-allowed disabled:opacity-60"
+        className="w-full rounded-lg bg-huellitas-primary px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-huellitas-primary-dark disabled:cursor-not-allowed disabled:opacity-60"
       >
         {loading ? "Ingresando..." : "Ingresar"}
       </button>
-
-      <p
-        className="text-center text-xs text-huellitas-ink/40"
-        title="Función próximamente disponible"
-      >
-        ¿Olvidaste tu contraseña?
-      </p>
     </form>
   );
 }

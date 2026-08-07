@@ -1,3 +1,5 @@
+export const metadata = { title: "Notas" };
+
 export default function NotasPage() {
   return (
     <div>

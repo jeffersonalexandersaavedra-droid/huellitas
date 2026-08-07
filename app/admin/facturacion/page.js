@@ -1,3 +1,5 @@
+export const metadata = { title: "Facturación" };
+
 export default function FacturacionPage() {
   return (
     <div>

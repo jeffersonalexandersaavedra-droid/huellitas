@@ -1,3 +1,5 @@
+export const metadata = { title: "Estudiantes" };
+
 export default function EstudiantesPage() {
   return (
     <div>

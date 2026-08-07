@@ -1,3 +1,5 @@
+export const metadata = { title: "Reportes" };
+
 export default function ReportesPage() {
   return (
     <div>

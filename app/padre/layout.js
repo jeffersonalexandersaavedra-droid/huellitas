@@ -16,7 +16,9 @@ export default function PadreLayout({ children }) {
         <LogoutButton />
       </header>
 
-      <main className="flex-1 bg-huellitas-cream p-6">{children}</main>
+      <main className="flex flex-1 items-center justify-center bg-huellitas-cream p-6">
+        {children}
+      </main>
     </div>
   );
 }

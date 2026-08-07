@@ -1,3 +1,5 @@
+export const metadata = { title: "Pagos" };
+
 export default function PagosPage() {
   return (
     <div>

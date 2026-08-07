@@ -1,3 +1,5 @@
+export const metadata = { title: "Ficha del estudiante" };
+
 export default async function EstudianteDetallePage({ params }) {
   const { id } = await params;
 

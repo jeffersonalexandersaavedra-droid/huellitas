@@ -5,7 +5,15 @@
       "Bash(node -e \"const icons = require\\('lucide-react'\\); console.log\\(typeof icons.MessageCircle, typeof icons.AtSign, typeof icons.Link2, typeof icons.Send, typeof icons.PawPrint, typeof icons.Lock, typeof icons.Clock4, typeof icons.Timer, typeof icons.Hourglass\\);\")",
       "Bash(curl -s -o /tmp/home2.html -w \"home: %{http_code}\\\\n\" http://localhost:3000/)",
       "Bash(curl -s -o /tmp/login2.html -w \"login: %{http_code}\\\\n\" http://localhost:3000/login)",
-      "Bash(taskkill //F //IM node.exe)"
+      "Bash(taskkill //F //IM node.exe)",
+      "Bash(node -e ' *)",
+      "Bash(curl -s http://localhost:3000/ -o /tmp/home3.html -w \"home: %{http_code}\\\\n\")",
+      "Bash(curl -s http://localhost:3000/login -o /tmp/login3.html -w \"login: %{http_code}\\\\n\")",
+      "Bash(npm run *)",
+      "Bash(curl -s http://localhost:3000/ -o /tmp/home4.html -w \"home: %{http_code}\\\\n\")",
+      "Bash(curl -s http://localhost:3000/ -o /tmp/home5.html -w \"home: %{http_code}\\\\n\")",
+      "Bash(curl -s http://localhost:3000/login -o /tmp/login5.html -w \"login: %{http_code}\\\\n\")",
+      "Bash(curl -s http://localhost:3000/padre -o /tmp/padre5.html -w \"padre \\(debe 307 redirect sin sesion\\): %{http_code}\\\\n\")"
     ]
   }
 }

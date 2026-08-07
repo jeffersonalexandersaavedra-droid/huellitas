@@ -1,11 +1,14 @@
+import Image from "next/image";
 import Link from "next/link";
 import {
   MapPin,
   Phone,
+  Mail,
   Clock,
+  Link2,
   MessageCircle,
   Baby,
-  GraduationCap,
+  BookOpen,
   Heart,
   Brain,
   Activity,
@@ -19,32 +22,53 @@ const PROPUESTA = [
   {
     icon: Heart,
     title: "Educación en Valores",
-    desc: "Formamos en civismo, respeto, empatía y convivencia.",
+    desc: "Formamos en respeto, empatía y convivencia.",
   },
   {
     icon: Brain,
     title: "Departamento de Psicología",
-    desc: "Apoyo emocional y desarrollo de la inteligencia emocional.",
+    desc: "Apoyo emocional e inteligencia emocional.",
   },
   {
     icon: Activity,
     title: "Actividades Deportivas",
-    desc: "Formación física, intelectual y social a través del deporte.",
+    desc: "Formación física e integral a través del deporte.",
   },
   {
     icon: Music,
     title: "Talleres Artísticos",
-    desc: "Música y danza para desarrollar la creatividad y expresión.",
+    desc: "Música y danza para la expresión creativa.",
   },
   {
     icon: Wifi,
     title: "Aulas Conectadas",
-    desc: "Tecnología al servicio del aprendizaje en cada aula.",
+    desc: "Tecnología al servicio del aprendizaje.",
   },
   {
     icon: Users,
     title: "Escuela para Padres",
-    desc: "Charlas y talleres para acompañar el proceso educativo en familia.",
+    desc: "Charlas y talleres para la familia.",
+  },
+];
+
+const DIRECTIVOS = [
+  {
+    inicial: "D",
+    nombre: "Daysi Reátegui Peláez",
+    cargo: "Promotora",
+    telefono: "942 608 498",
+    email: "daysireategui@gmail.com",
+    whatsapp:
+      "https://wa.me/51942608498?text=Hola%20Daysi%2C%20me%20comunico%20desde%20la%20web%20de%20Huellitas",
+  },
+  {
+    inicial: "R",
+    nombre: "Richter Henry Salas Rivera",
+    cargo: "Administrador",
+    telefono: "950 617 019",
+    email: "richterhenrysalas@gmail.com",
+    whatsapp:
+      "https://wa.me/51950617019?text=Hola%20Richter%2C%20me%20comunico%20desde%20la%20web%20de%20Huellitas",
   },
 ];
 
@@ -53,218 +77,261 @@ export default function Home() {
     <div className="flex flex-1 flex-col">
       <SiteHeader />
 
-      {/* HERO */}
-      <section
-        id="inicio"
-        className="relative overflow-hidden bg-gradient-to-b from-huellitas-cream to-white px-6 py-20 md:py-32"
-      >
-        <div className="pointer-events-none absolute -left-24 -top-24 h-96 w-96 rounded-full bg-huellitas-primary/10" />
-        <div className="pointer-events-none absolute -bottom-32 -right-24 h-96 w-96 rounded-full bg-huellitas-primary/10" />
+      {/* SECCIÓN 1: HERO + NIVELES */}
+      <section id="inicio" className="relative">
+        <div className="relative overflow-hidden">
+          <Image
+            src="/logos/huellitas-banner.png"
+            alt=""
+            fill
+            priority
+            className="object-cover"
+          />
+          <div className="absolute inset-0 bg-huellitas-primary/85" />
 
-        <div className="relative mx-auto flex max-w-6xl flex-col items-center text-center">
-          <h1 className="max-w-3xl text-balance font-display text-4xl font-semibold tracking-tight text-huellitas-ink sm:text-5xl">
-            Educando con Calidad y{" "}
-            <span className="text-huellitas-magenta">Calidez</span>
-          </h1>
-          <p className="mt-4 text-base text-huellitas-ink/70">
-            I.E.P. Huellitas · Inicial y Primaria en Tocache
-          </p>
+          <div className="relative mx-auto flex max-w-6xl flex-col items-center px-6 py-24 text-center md:py-32">
+            <Image
+              src="/logos/huellitas-escudo.png"
+              alt="Escudo de I.E.P. Huellitas"
+              width={99}
+              height={120}
+              priority
+              className="h-24 w-auto"
+            />
 
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <h1 className="mt-6 max-w-3xl text-balance font-display text-5xl font-semibold text-white md:text-6xl">
+              Educando con Calidad y{" "}
+              <span className="text-huellitas-accent">Calidez</span>
+            </h1>
+
+            <p className="mt-4 text-base text-white/90">
+              I.E.P. Huellitas · Inicial y Primaria en Tocache, San Martín
+            </p>
+
             <a
-              href="#propuesta"
-              className="rounded-lg bg-huellitas-primary px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-huellitas-primary-dark"
+              href="#nosotros"
+              className="mt-8 rounded-lg bg-huellitas-accent px-6 py-3 text-sm font-medium text-huellitas-primary transition-colors hover:bg-huellitas-accent-dark"
             >
-              Conoce nuestra propuesta
+              Conoce más
             </a>
-            <a
-              href="#contacto"
-              className="rounded-lg border border-huellitas-primary px-6 py-3 text-sm font-medium text-huellitas-primary transition-colors hover:bg-huellitas-primary-light"
-            >
-              Contáctanos
-            </a>
-          </div>
 
-          <p className="mt-10 text-xs text-huellitas-ink/50">
-            22 años formando estudiantes con amor y compromiso
-          </p>
-        </div>
-      </section>
-
-      {/* NOSOTROS */}
-      <section id="nosotros" className="bg-white px-6 py-20">
-        <div className="mx-auto grid max-w-6xl gap-12 md:grid-cols-2 md:items-center">
-          <div>
-            <h2 className="font-display text-3xl font-semibold text-huellitas-ink">
-              Nosotros
-            </h2>
-            <p className="mt-4 text-huellitas-ink/70">
-              La I.E.P. Huellitas es una institución educativa privada
-              ubicada en la provincia de Tocache, San Martín.
-            </p>
-            <p className="mt-4 text-huellitas-ink/70">
-              Con más de dos décadas de trayectoria, nos hemos consolidado
-              como referente educativo en la región, brindando educación de
-              calidad en los niveles de Inicial y Primaria.
-            </p>
-            <p className="mt-4 text-huellitas-ink/70">
-              Nuestra propuesta se basa en formar estudiantes íntegros, con
-              valores sólidos, capacidad crítica y preparados para los
-              desafíos del futuro.
-            </p>
-          </div>
-
-          <div className="rounded-2xl bg-huellitas-primary-light p-10 text-center">
-            <p className="font-display text-5xl font-semibold text-huellitas-primary">
-              22 años
-            </p>
-            <p className="mt-2 text-sm font-medium text-huellitas-accent-dark">
-              de trayectoria
-            </p>
-            <p className="mt-6 text-sm text-huellitas-ink/70">
-              +170 estudiantes · Inicial y Primaria
+            <p className="mt-8 text-xs text-white/70">
+              Más de 22 años formando estudiantes
             </p>
           </div>
         </div>
-      </section>
 
-      {/* NIVELES */}
-      <section id="niveles" className="bg-huellitas-cream px-6 py-20">
-        <div className="mx-auto max-w-6xl">
-          <h2 className="text-center font-display text-3xl font-semibold text-huellitas-ink">
-            Nuestros Niveles
-          </h2>
-
-          <div className="mt-12 grid gap-6 md:grid-cols-2">
-            <div className="rounded-2xl bg-white p-8 shadow-sm">
-              <Baby
-                className="h-10 w-10 text-huellitas-primary"
-                strokeWidth={1.5}
-              />
+        <div className="relative z-10 mx-auto -mt-16 max-w-6xl px-6 pb-16">
+          <div className="grid gap-6 md:grid-cols-2">
+            <div className="rounded-2xl bg-white p-8 shadow-lg">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-huellitas-primary-light text-huellitas-accent">
+                <Baby className="h-7 w-7" strokeWidth={2} />
+              </div>
               <h3 className="mt-4 font-display text-2xl font-semibold text-huellitas-primary">
                 Inicial
               </h3>
               <p className="mt-3 text-huellitas-ink/70">
-                Brindamos a nuestros niños los estímulos necesarios para su
-                desarrollo psicomotriz, intelectual y emocional en un
-                ambiente seguro y afectivo.
+                Estímulos para el desarrollo psicomotriz, intelectual y
+                emocional en un ambiente seguro y afectivo.
               </p>
-              <p className="mt-4 text-sm font-medium text-huellitas-accent-dark">
+              <span className="mt-4 inline-flex items-center rounded-full bg-huellitas-accent px-3 py-1 text-xs font-semibold text-huellitas-ink">
                 3, 4 y 5 años
-              </p>
+              </span>
             </div>
 
-            <div className="rounded-2xl bg-white p-8 shadow-sm">
-              <GraduationCap
-                className="h-10 w-10 text-huellitas-primary"
-                strokeWidth={1.5}
-              />
+            <div className="rounded-2xl bg-white p-8 shadow-lg">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-huellitas-primary-light text-huellitas-accent">
+                <BookOpen className="h-7 w-7" strokeWidth={2} />
+              </div>
               <h3 className="mt-4 font-display text-2xl font-semibold text-huellitas-primary">
                 Primaria
               </h3>
               <p className="mt-3 text-huellitas-ink/70">
-                Alto nivel académico, formación en libertad y
-                responsabilidad. Fomentamos el liderazgo, el pensamiento
-                crítico y los valores desde temprana edad.
+                Alto nivel académico con formación en libertad, liderazgo,
+                pensamiento crítico y valores.
               </p>
-              <p className="mt-4 text-sm font-medium text-huellitas-accent-dark">
+              <span className="mt-4 inline-flex items-center rounded-full bg-huellitas-accent px-3 py-1 text-xs font-semibold text-huellitas-ink">
                 1° a 6° grado
-              </p>
+              </span>
             </div>
           </div>
         </div>
       </section>
 
-      {/* PROPUESTA */}
-      <section id="propuesta" className="bg-white px-6 py-20">
+      {/* SECCIÓN 2: NOSOTROS + PROPUESTA */}
+      <section id="nosotros" className="bg-huellitas-cream px-6 py-24">
         <div className="mx-auto max-w-6xl">
-          <h2 className="text-center font-display text-3xl font-semibold text-huellitas-ink">
-            Nuestra Propuesta Educativa
-          </h2>
+          <div className="text-center">
+            <h2 className="font-display text-4xl font-semibold text-huellitas-ink">
+              Nosotros
+            </h2>
+            <div className="mx-auto mt-3 h-1 w-16 rounded-full bg-huellitas-accent" />
+          </div>
 
-          <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-12 grid gap-8 md:grid-cols-3">
+            <div className="space-y-4 md:col-span-2">
+              <p className="text-huellitas-ink/70">
+                La I.E.P. Huellitas es una institución educativa privada
+                ubicada en la provincia de Tocache, San Martín. Con más de
+                dos décadas de trayectoria, nos hemos consolidado como
+                referente educativo en la región.
+              </p>
+              <p className="text-huellitas-ink/70">
+                Brindamos educación de calidad en los niveles de Inicial y
+                Primaria, formando estudiantes íntegros, con valores
+                sólidos, capacidad crítica y preparados para los desafíos
+                del futuro.
+              </p>
+            </div>
+
+            <div className="space-y-6 rounded-2xl border-2 border-huellitas-accent bg-huellitas-primary-light/40 p-8 text-center">
+              <div>
+                <p className="font-display text-4xl font-semibold text-huellitas-primary">
+                  22+
+                </p>
+                <p className="mt-1 text-sm text-huellitas-ink/60">
+                  años de trayectoria
+                </p>
+              </div>
+              <div>
+                <p className="font-display text-4xl font-semibold text-huellitas-primary">
+                  170+
+                </p>
+                <p className="mt-1 text-sm text-huellitas-ink/60">
+                  estudiantes matriculados
+                </p>
+              </div>
+              <div>
+                <p className="font-display text-4xl font-semibold text-huellitas-primary">
+                  2
+                </p>
+                <p className="mt-1 text-sm text-huellitas-ink/60">
+                  niveles educativos
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-16 text-center">
+            <h3 className="font-display text-3xl font-semibold text-huellitas-ink">
+              Nuestra Propuesta Educativa
+            </h3>
+            <div className="mx-auto mt-3 h-1 w-16 rounded-full bg-huellitas-accent" />
+          </div>
+
+          <div className="mt-12 grid gap-6 md:grid-cols-3">
             {PROPUESTA.map(({ icon: Icon, title, desc }) => (
-              <div
-                key={title}
-                className="rounded-2xl border border-stone-200 p-6"
-              >
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-huellitas-primary-light text-huellitas-accent">
-                  <Icon className="h-6 w-6" strokeWidth={2} />
+              <div key={title} className="rounded-xl bg-white p-5">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-huellitas-primary-light text-huellitas-accent">
+                  <Icon className="h-5 w-5" strokeWidth={2} />
                 </div>
-                <h3 className="mt-4 font-medium text-huellitas-primary">
+                <h4 className="mt-3 font-display text-lg font-semibold text-huellitas-primary">
                   {title}
-                </h3>
-                <p className="mt-2 text-sm text-stone-500">{desc}</p>
+                </h4>
+                <p className="mt-1 text-sm text-stone-500">{desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* CONTACTO */}
-      <section id="contacto" className="bg-huellitas-cream px-6 py-20">
+      {/* SECCIÓN 3: CONTACTO */}
+      <section id="contacto" className="bg-white px-6 py-24">
         <div className="mx-auto max-w-6xl">
-          <h2 className="text-center font-display text-3xl font-semibold text-huellitas-ink">
-            Contáctanos
-          </h2>
+          <div className="text-center">
+            <h2 className="font-display text-4xl font-semibold text-huellitas-ink">
+              Contáctanos
+            </h2>
+            <div className="mx-auto mt-3 h-1 w-16 rounded-full bg-huellitas-accent" />
+          </div>
 
-          <div className="mt-12 grid gap-10 md:grid-cols-2">
-            <ul className="space-y-5">
-              <li className="flex items-start gap-3">
-                <MapPin
-                  className="mt-0.5 h-5 w-5 shrink-0 text-huellitas-primary"
-                  strokeWidth={2}
-                />
-                <span className="text-huellitas-ink/80">
-                  Tocache, San Martín, Perú
-                </span>
-              </li>
-              <li className="flex items-start gap-3">
-                <Phone
-                  className="mt-0.5 h-5 w-5 shrink-0 text-huellitas-primary"
-                  strokeWidth={2}
-                />
-                <span className="text-huellitas-ink/80">
-                  +51 950 617 019
-                </span>
-              </li>
-              <li className="flex items-start gap-3">
-                <Clock
-                  className="mt-0.5 h-5 w-5 shrink-0 text-huellitas-primary"
-                  strokeWidth={2}
-                />
-                <span className="text-huellitas-ink/80">
-                  Lunes a Viernes · Hasta las 18:00
-                </span>
-              </li>
-              <li className="flex items-start gap-3">
-                <MessageCircle
-                  className="mt-0.5 h-5 w-5 shrink-0 text-huellitas-primary"
-                  strokeWidth={2}
-                />
-                <span className="text-huellitas-ink/80">
-                  @iephuellitastocache
-                </span>
-              </li>
-            </ul>
+          <p className="mx-auto mt-6 max-w-2xl text-center text-huellitas-ink/70">
+            Estamos para atenderte. Escríbenos directamente por WhatsApp
+            para consultas sobre matrículas, pensiones o el proceso
+            académico.
+          </p>
 
-            <div className="rounded-2xl bg-white p-8 shadow-sm">
-              <h3 className="font-display text-xl font-semibold text-huellitas-ink">
-                ¿Interesado en matricular a tu hijo?
-              </h3>
-              <p className="mt-3 text-sm text-huellitas-ink/70">
-                Comunícate con nosotros para conocer el proceso de admisión
-                y nuestras vacantes disponibles.
+          <div className="mt-12 grid gap-4 md:grid-cols-3">
+            <div className="rounded-xl border border-stone-200 p-5">
+              <MapPin className="h-6 w-6 text-huellitas-accent" strokeWidth={2} />
+              <h4 className="mt-3 font-semibold text-huellitas-primary">
+                Ubicación
+              </h4>
+              <p className="mt-1 text-sm text-stone-600">
+                Tocache, San Martín, Perú
               </p>
+            </div>
+
+            <div className="rounded-xl border border-stone-200 p-5">
+              <Clock className="h-6 w-6 text-huellitas-accent" strokeWidth={2} />
+              <h4 className="mt-3 font-semibold text-huellitas-primary">
+                Horario
+              </h4>
+              <p className="mt-1 text-sm text-stone-600">
+                Lun a Vie · Hasta 18:00
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-stone-200 p-5">
+              <Link2 className="h-6 w-6 text-huellitas-accent" strokeWidth={2} />
+              <h4 className="mt-3 font-semibold text-huellitas-primary">
+                Facebook
+              </h4>
               <a
-                href="https://facebook.com/iephuellitastocache"
+                href="https://www.facebook.com/iephuellitastocache"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-6 inline-flex items-center rounded-lg bg-huellitas-accent px-5 py-2.5 text-sm font-medium text-huellitas-ink transition-colors hover:bg-huellitas-accent-dark hover:text-white"
+                className="mt-1 inline-block text-sm text-huellitas-primary hover:underline"
               >
-                Escríbenos por Facebook
+                @iephuellitastocache
               </a>
             </div>
+          </div>
+
+          <div className="mt-12 grid gap-6 md:grid-cols-2">
+            {DIRECTIVOS.map((d) => (
+              <div
+                key={d.nombre}
+                className="rounded-xl border-t-4 border-huellitas-accent bg-white p-6 shadow-sm"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-huellitas-primary font-display text-xl font-semibold text-huellitas-accent">
+                    {d.inicial}
+                  </div>
+                  <div>
+                    <p className="font-display text-lg font-semibold text-huellitas-primary">
+                      {d.nombre}
+                    </p>
+                    <span className="mt-1 inline-flex items-center rounded-full bg-huellitas-accent px-2.5 py-0.5 text-xs font-medium text-huellitas-primary-dark">
+                      {d.cargo}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="my-4 border-t border-stone-100" />
+
+                <div className="space-y-2">
+                  <p className="flex items-center gap-2 text-sm text-huellitas-ink/80">
+                    <Phone className="h-4 w-4 text-huellitas-primary" strokeWidth={2} />
+                    {d.telefono}
+                  </p>
+                  <p className="flex items-center gap-2 text-sm text-huellitas-ink/80">
+                    <Mail className="h-4 w-4 text-huellitas-primary" strokeWidth={2} />
+                    {d.email}
+                  </p>
+                </div>
+
+                <a
+                  href={d.whatsapp}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-huellitas-primary py-3 text-sm font-medium text-white transition-colors hover:bg-huellitas-primary-dark"
+                >
+                  <MessageCircle className="h-4 w-4" strokeWidth={2} />
+                  Escribir por WhatsApp
+                </a>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -273,9 +340,17 @@ export default function Home() {
       <footer className="bg-huellitas-primary-dark px-6 py-16 text-huellitas-cream">
         <div className="mx-auto grid max-w-6xl gap-10 sm:grid-cols-3">
           <div>
-            <p className="font-display text-xl font-semibold text-white">
-              Huellitas<span className="text-huellitas-accent">.</span>
-            </p>
+            <div className="flex items-center gap-2">
+              <Image
+                src="/logos/huellitas-escudo-sin-fondo.png"
+                alt=""
+                width={32}
+                height={39}
+              />
+              <p className="font-display text-xl font-semibold text-white">
+                Huellitas<span className="text-huellitas-accent">.</span>
+              </p>
+            </div>
             <p className="mt-2 text-sm italic text-huellitas-cream/70">
               Educando con Calidad y Calidez
             </p>
@@ -292,11 +367,6 @@ export default function Home() {
               <li>
                 <a href="#nosotros" className="hover:text-white">
                   Nosotros
-                </a>
-              </li>
-              <li>
-                <a href="#niveles" className="hover:text-white">
-                  Niveles
                 </a>
               </li>
               <li>
