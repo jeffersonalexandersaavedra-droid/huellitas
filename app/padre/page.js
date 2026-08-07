@@ -8,31 +8,22 @@ export default async function PadrePage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data: apoderado } = await supabase
-    .from("apoderados")
+  const { data: estudiante } = await supabase
+    .from("estudiantes")
     .select("id, nombres, apellidos, password_cambiado")
     .eq("user_id", user.id)
     .maybeSingle();
 
-  const { data: vinculo } = await supabase
-    .from("estudiante_apoderado")
-    .select("estudiante_id, estudiantes(id, nombres, apellidos)")
-    .eq("apoderado_id", apoderado?.id ?? "")
-    .limit(1)
-    .maybeSingle();
-
-  if (!apoderado || !vinculo) {
+  if (!estudiante) {
     return (
       <div className="rounded-xl bg-white p-8 text-center shadow-sm">
         <p className="text-sm text-huellitas-ink/70">
-          No encontramos información de tu hijo. Comunícate con
+          No encontramos tu información de estudiante. Comunícate con
           administración.
         </p>
       </div>
     );
   }
-
-  const estudiante = vinculo.estudiantes;
 
   const { data: matricula } = await supabase
     .from("matriculas")
@@ -44,7 +35,7 @@ export default async function PadrePage() {
     return (
       <div className="rounded-xl bg-white p-8 text-center shadow-sm">
         <p className="text-sm text-huellitas-ink/70">
-          Tu hijo no tiene una matrícula activa este año. Comunícate con
+          No tienes una matrícula activa este año. Comunícate con
           administración.
         </p>
       </div>
@@ -67,7 +58,6 @@ export default async function PadrePage() {
 
   return (
     <PadreDashboard
-      apoderado={apoderado}
       estudiante={estudiante}
       matricula={matricula}
       cuotas={cuotas ?? []}

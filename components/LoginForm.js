@@ -34,7 +34,7 @@ export default function LoginForm() {
           htmlFor="identifier"
           className="mb-1 block text-sm font-medium text-stone-700"
         >
-          Correo electrónico o DNI del hijo
+          Usuario o correo
         </label>
         <input
           id="identifier"
@@ -42,7 +42,7 @@ export default function LoginForm() {
           type="text"
           required
           autoComplete="username"
-          placeholder="admin@huellitas.pe o 76543210"
+          placeholder="DNI del estudiante o correo del administrador"
           value={identifier}
           onChange={(event) => setIdentifier(event.target.value)}
           className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20"

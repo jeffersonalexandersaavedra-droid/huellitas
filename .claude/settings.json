@@ -15,7 +15,12 @@
       "Bash(curl -s http://localhost:3000/login -o /tmp/login5.html -w \"login: %{http_code}\\\\n\")",
       "Bash(curl -s http://localhost:3000/padre -o /tmp/padre5.html -w \"padre \\(debe 307 redirect sin sesion\\): %{http_code}\\\\n\")",
       "Bash(curl -s http://localhost:3000/login -o /tmp/login6.html -w \"login: %{http_code}\\\\n\")",
-      "Bash(curl -s -o /dev/null -w \"padre sin sesion \\(esperado 307\\): %{http_code}\\\\n\" http://localhost:3000/padre)"
+      "Bash(curl -s -o /dev/null -w \"padre sin sesion \\(esperado 307\\): %{http_code}\\\\n\" http://localhost:3000/padre)",
+      "Bash(curl -s http://localhost:3000/login -o /tmp/login7.html -w \"login: %{http_code}\\\\n\")",
+      "Bash(curl -s -o /dev/null -w \"estudiantes/nuevo sin sesion \\(esperado 307\\): %{http_code}\\\\n\" http://localhost:3000/admin/estudiantes/nuevo)",
+      "Bash(curl -s -o /dev/null -w \"api registrar-estudiante sin sesion \\(esperado 403 via app logic\\): %{http_code}\\\\n\" -X POST -H \"Content-Type: application/json\" -d '{}' http://localhost:3000/api/admin/registrar-estudiante)",
+      "Bash(curl -s http://localhost:3000/login -o /tmp/login8.html -w \"login: %{http_code}\\\\n\")",
+      "Bash(xargs grep -l \"Educando con Calidad\")"
     ]
   }
 }

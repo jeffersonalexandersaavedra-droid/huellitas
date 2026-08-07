@@ -79,7 +79,7 @@ export default function Home() {
 
       {/* SECCIÓN 1: HERO + NIVELES */}
       <section id="inicio" className="relative">
-        <div className="relative overflow-hidden">
+        <div className="relative w-full overflow-hidden">
           <Image
             src="/logos/huellitas-banner.png"
             alt=""
@@ -89,14 +89,14 @@ export default function Home() {
           />
           <div className="absolute inset-0 bg-huellitas-primary/85" />
 
-          <div className="relative mx-auto flex max-w-6xl flex-col items-center px-6 py-24 text-center md:py-32">
+          <div className="relative mx-auto flex w-full max-w-4xl flex-col items-center justify-center px-6 py-24 text-center md:py-32">
             <Image
               src="/logos/huellitas-escudo.png"
               alt="Escudo de I.E.P. Huellitas"
               width={99}
               height={120}
               priority
-              className="h-24 w-auto"
+              className="mx-auto h-24 w-auto"
             />
 
             <h1 className="mt-6 max-w-3xl text-balance font-display text-5xl font-semibold text-white md:text-6xl">
@@ -110,7 +110,7 @@ export default function Home() {
 
             <a
               href="#nosotros"
-              className="mt-8 rounded-lg bg-huellitas-accent px-6 py-3 text-sm font-medium text-huellitas-primary transition-colors hover:bg-huellitas-accent-dark"
+              className="mx-auto mt-8 rounded-lg bg-huellitas-accent px-6 py-3 text-sm font-medium text-huellitas-primary transition-colors hover:bg-huellitas-accent-dark"
             >
               Conoce más
             </a>

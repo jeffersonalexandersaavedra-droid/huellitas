@@ -86,7 +86,7 @@ export default function ModalCambiarPassword({ open, onClose, onSuccess }) {
     }
 
     await supabase
-      .from("apoderados")
+      .from("estudiantes")
       .update({ password_cambiado: true })
       .eq("user_id", user.id);
 

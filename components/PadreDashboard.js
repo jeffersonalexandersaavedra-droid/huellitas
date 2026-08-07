@@ -49,7 +49,7 @@ function formatFecha(fecha) {
   return fecha ? new Date(fecha).toLocaleDateString("es-PE") : "—";
 }
 
-export default function PadreDashboard({ apoderado, estudiante, matricula, cuotas, notas }) {
+export default function PadreDashboard({ estudiante, matricula, cuotas, notas }) {
   const router = useRouter();
   const anioActual = matricula.anios_escolares?.anio ?? new Date().getFullYear();
   const mesActual = new Date().getMonth() + 1;
@@ -58,7 +58,7 @@ export default function PadreDashboard({ apoderado, estudiante, matricula, cuota
   const cuotaDelMes = cuotas.find((c) => c.mes === mesActual) ?? null;
   const otrasCuotas = cuotas.filter((c) => c.id !== cuotaDelMes?.id);
 
-  const [bannerVisible, setBannerVisible] = useState(apoderado.password_cambiado === false);
+  const [bannerVisible, setBannerVisible] = useState(estudiante.password_cambiado === false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [modalPago, setModalPago] = useState(null);
   const [bimestreActivo, setBimestreActivo] = useState(bimestreActualReal);

@@ -13,34 +13,23 @@ export default async function PadreLayout({ children }) {
   let gradoAula = "";
 
   if (user) {
-    const { data: apoderado } = await supabase
-      .from("apoderados")
-      .select("id")
+    const { data: estudiante } = await supabase
+      .from("estudiantes")
+      .select("id, nombres, apellidos")
       .eq("user_id", user.id)
       .maybeSingle();
 
-    if (apoderado) {
-      const { data: vinculo } = await supabase
-        .from("estudiante_apoderado")
-        .select("estudiante_id, estudiantes(nombres, apellidos)")
-        .eq("apoderado_id", apoderado.id)
-        .limit(1)
+    if (estudiante) {
+      estudianteNombre = `${estudiante.nombres} ${estudiante.apellidos}`;
+
+      const { data: matricula } = await supabase
+        .from("matriculas")
+        .select("aulas(nombre)")
+        .eq("estudiante_id", estudiante.id)
         .maybeSingle();
 
-      if (vinculo?.estudiantes) {
-        estudianteNombre = `${vinculo.estudiantes.nombres} ${vinculo.estudiantes.apellidos}`;
-      }
-
-      if (vinculo?.estudiante_id) {
-        const { data: matricula } = await supabase
-          .from("matriculas")
-          .select("aulas(nombre)")
-          .eq("estudiante_id", vinculo.estudiante_id)
-          .maybeSingle();
-
-        if (matricula?.aulas) {
-          gradoAula = matricula.aulas.nombre;
-        }
+      if (matricula?.aulas) {
+        gradoAula = matricula.aulas.nombre;
       }
     }
   }
