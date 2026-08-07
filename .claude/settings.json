@@ -20,7 +20,11 @@
       "Bash(curl -s -o /dev/null -w \"estudiantes/nuevo sin sesion \\(esperado 307\\): %{http_code}\\\\n\" http://localhost:3000/admin/estudiantes/nuevo)",
       "Bash(curl -s -o /dev/null -w \"api registrar-estudiante sin sesion \\(esperado 403 via app logic\\): %{http_code}\\\\n\" -X POST -H \"Content-Type: application/json\" -d '{}' http://localhost:3000/api/admin/registrar-estudiante)",
       "Bash(curl -s http://localhost:3000/login -o /tmp/login8.html -w \"login: %{http_code}\\\\n\")",
-      "Bash(xargs grep -l \"Educando con Calidad\")"
+      "Bash(xargs grep -l \"Educando con Calidad\")",
+      "Bash(python3 -c \"print\\('python available'\\)\")",
+      "Bash(node -e \"console.log\\(process.version\\)\")",
+      "Bash(where magick *)",
+      "Bash(where convert *)"
     ]
   }
 }

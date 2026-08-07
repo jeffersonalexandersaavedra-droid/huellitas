@@ -85,18 +85,18 @@ export default function Home() {
             alt=""
             fill
             priority
-            className="object-cover"
+            className="object-cover object-[52.8%_25%]"
           />
           <div className="absolute inset-0 bg-huellitas-primary/85" />
 
           <div className="relative mx-auto flex w-full max-w-4xl flex-col items-center justify-center px-6 py-24 text-center md:py-32">
             <Image
-              src="/logos/huellitas-escudo.png"
+              src="/logos/huellitas-escudo-sin-fondo.png"
               alt="Escudo de I.E.P. Huellitas"
               width={99}
               height={120}
               priority
-              className="mx-auto h-24 w-auto"
+              className="mx-auto h-24 w-auto md:h-32"
             />
 
             <h1 className="mt-6 max-w-3xl text-balance font-display text-5xl font-semibold text-white md:text-6xl">
