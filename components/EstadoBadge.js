@@ -1,13 +1,16 @@
 const ESTADOS = {
-  pagado: { label: "Pagado", className: "bg-emerald-100 text-emerald-800" },
-  validado: { label: "Validado", className: "bg-emerald-100 text-emerald-800" },
-  verificando: { label: "Verificando", className: "bg-amber-100 text-amber-800" },
+  pagado: { label: "Pagado", className: "bg-emerald-50 text-emerald-700" },
+  validado: { label: "Validado", className: "bg-emerald-50 text-emerald-700" },
+  activa: { label: "Al día", className: "bg-emerald-50 text-emerald-700" },
+  verificando: {
+    label: "Verificando",
+    className: "bg-huellitas-accent/10 text-huellitas-accent-dark",
+  },
   pendiente: { label: "Pendiente", className: "bg-stone-100 text-stone-600" },
-  vencido: { label: "Vencido", className: "bg-red-100 text-red-700" },
-  rechazado: { label: "Rechazado", className: "bg-red-100 text-red-700" },
-  activa: { label: "Activa", className: "bg-emerald-100 text-emerald-800" },
   retirado: { label: "Retirado", className: "bg-stone-100 text-stone-600" },
   culminado: { label: "Culminado", className: "bg-stone-100 text-stone-600" },
+  vencido: { label: "Atrasado", className: "bg-rose-50 text-rose-700" },
+  rechazado: { label: "Rechazado", className: "bg-rose-50 text-rose-700" },
 };
 
 export default function EstadoBadge({ estado }) {

@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \"const icons = require\\('lucide-react'\\); console.log\\(typeof icons.Facebook, typeof icons.MapPin, typeof icons.Phone, typeof icons.Clock, typeof icons.Baby, typeof icons.GraduationCap, typeof icons.Heart, typeof icons.Brain, typeof icons.Activity, typeof icons.Music, typeof icons.Wifi, typeof icons.Users, typeof icons.Lock, typeof icons.Bell, typeof icons.Sparkles, typeof icons.BookOpen\\);\")",
+      "Bash(node -e \"const icons = require\\('lucide-react'\\); console.log\\(typeof icons.MessageCircle, typeof icons.AtSign, typeof icons.Link2, typeof icons.Send, typeof icons.PawPrint, typeof icons.Lock, typeof icons.Clock4, typeof icons.Timer, typeof icons.Hourglass\\);\")",
+      "Bash(curl -s -o /tmp/home2.html -w \"home: %{http_code}\\\\n\" http://localhost:3000/)",
+      "Bash(curl -s -o /tmp/login2.html -w \"login: %{http_code}\\\\n\" http://localhost:3000/login)",
+      "Bash(taskkill //F //IM node.exe)"
+    ]
+  }
+}

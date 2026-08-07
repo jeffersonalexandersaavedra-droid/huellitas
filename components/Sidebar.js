@@ -30,13 +30,13 @@ export default function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="flex h-full w-64 shrink-0 flex-col border-r border-stone-200 bg-white">
+    <aside className="flex h-full w-64 shrink-0 flex-col bg-huellitas-primary">
       <div className="flex items-center gap-2 px-5 py-5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-800 text-amber-400">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 text-huellitas-accent">
           <PawPrint className="h-5 w-5" strokeWidth={2} />
         </div>
-        <span className="text-lg font-semibold text-emerald-900">
-          Huellitas
+        <span className="font-display text-lg font-semibold text-white">
+          Huellitas<span className="text-huellitas-accent">.</span>
         </span>
       </div>
 
@@ -49,8 +49,8 @@ export default function Sidebar() {
               href={href}
               className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                 isActive
-                  ? "bg-emerald-800 text-white"
-                  : "text-stone-600 hover:bg-stone-100 hover:text-stone-900"
+                  ? "bg-white text-huellitas-primary"
+                  : "text-white/80 hover:bg-white/10 hover:text-white"
               }`}
             >
               <Icon className="h-4 w-4 shrink-0" strokeWidth={2} />
@@ -60,7 +60,7 @@ export default function Sidebar() {
         })}
       </nav>
 
-      <div className="border-t border-stone-200 px-3 py-3">
+      <div className="border-t border-white/10 px-3 py-3">
         <LogoutButton className="w-full" />
       </div>
     </aside>

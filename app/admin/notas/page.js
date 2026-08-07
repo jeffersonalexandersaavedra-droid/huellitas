@@ -1,7 +1,7 @@
 export default function NotasPage() {
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-stone-900">
+      <h1 className="font-display text-2xl font-semibold text-huellitas-ink">
         Boletas de notas
       </h1>
       <p className="mt-2 text-sm text-stone-500">

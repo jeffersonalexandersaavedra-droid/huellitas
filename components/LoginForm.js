@@ -28,8 +28,14 @@ export default function LoginForm() {
       return;
     }
 
-    const role = data.user?.app_metadata?.role;
-    router.push(role === "admin" ? "/admin/dashboard" : "/padre");
+    if (data.user?.app_metadata?.role !== "admin") {
+      await supabase.auth.signOut();
+      setError("Esta cuenta no tiene permisos de administrador.");
+      setLoading(false);
+      return;
+    }
+
+    router.push("/admin/dashboard");
     router.refresh();
   }
 
@@ -50,7 +56,7 @@ export default function LoginForm() {
           autoComplete="email"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
-          className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20"
+          className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20"
         />
       </div>
 
@@ -69,12 +75,12 @@ export default function LoginForm() {
           autoComplete="current-password"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
-          className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20"
+          className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20"
         />
       </div>
 
       {error && (
-        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
           {error}
         </p>
       )}
@@ -82,10 +88,17 @@ export default function LoginForm() {
       <button
         type="submit"
         disabled={loading}
-        className="w-full rounded-lg bg-emerald-800 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+        className="w-full rounded-lg bg-huellitas-primary px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-huellitas-primary-dark disabled:cursor-not-allowed disabled:opacity-60"
       >
         {loading ? "Ingresando..." : "Ingresar"}
       </button>
+
+      <p
+        className="text-center text-xs text-huellitas-ink/40"
+        title="Función próximamente disponible"
+      >
+        ¿Olvidaste tu contraseña?
+      </p>
     </form>
   );
 }
