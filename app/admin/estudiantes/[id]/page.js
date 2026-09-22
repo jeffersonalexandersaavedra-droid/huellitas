@@ -1,25 +1,13 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import EstadoBadge from "@/components/EstadoBadge";
+import EstadoCuentaBadge from "@/components/EstadoCuentaBadge";
 import NotaBadge from "@/components/NotaBadge";
+import ResetPasswordButton from "@/components/ResetPasswordButton";
+import { MESES, formatFecha } from "@/lib/fecha";
+import { tieneDeuda } from "@/lib/cuentas";
 
 export const metadata = { title: "Ficha del estudiante" };
-
-const MESES = [
-  "",
-  "Enero",
-  "Febrero",
-  "Marzo",
-  "Abril",
-  "Mayo",
-  "Junio",
-  "Julio",
-  "Agosto",
-  "Septiembre",
-  "Octubre",
-  "Noviembre",
-  "Diciembre",
-];
 
 export default async function EstudianteDetallePage({ params }) {
   const { id } = await params;
@@ -27,7 +15,7 @@ export default async function EstudianteDetallePage({ params }) {
 
   const { data: estudiante } = await supabase
     .from("estudiantes")
-    .select("id, dni, nombres, apellidos, fecha_nacimiento, activo, email_interno, password_cambiado")
+    .select("id, dni, nombres, apellidos, fecha_nacimiento, activo, email_interno, password_cambiado, user_id")
     .eq("id", id)
     .maybeSingle();
 
@@ -66,6 +54,7 @@ export default async function EstudianteDetallePage({ params }) {
   const cuotas = cuotasRes.data ?? [];
   const notas = notasRes.data ?? [];
   const apoderados = (vinculos ?? []).slice().sort((a, b) => Number(b.es_principal) - Number(a.es_principal));
+  const conDeuda = tieneDeuda(cuotas);
 
   const notasPorBimestre = new Map();
   for (const n of notas) {
@@ -76,35 +65,49 @@ export default async function EstudianteDetallePage({ params }) {
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <h1 className="font-display text-2xl font-semibold text-huellitas-ink">
             {estudiante.nombres} {estudiante.apellidos}
           </h1>
           <EstadoBadge estado={estudiante.activo ? "activa" : "retirado"} />
+          <EstadoCuentaBadge conDeuda={conDeuda} />
         </div>
         <p className="mt-1 text-sm text-stone-500">
           DNI <span className="font-mono">{estudiante.dni}</span>
-          {matricula?.aulas && <> · {matricula.aulas.nombre}</>}
+          {matricula?.aulas && (
+            <> · {matricula.aulas.nombre} ({matricula.aulas.nivel})</>
+          )}
           {matricula?.anios_escolares && <> · {matricula.anios_escolares.anio}</>}
         </p>
       </div>
 
       <section className="rounded-xl bg-white p-6 shadow-sm">
-        <h2 className="font-display text-lg font-semibold text-huellitas-primary">
-          Datos del estudiante
-        </h2>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <h2 className="font-display text-lg font-semibold text-huellitas-primary">
+            Datos del estudiante
+          </h2>
+          <ResetPasswordButton
+            tipo="estudiante"
+            id={estudiante.id}
+            tieneAcceso={Boolean(estudiante.user_id)}
+          />
+        </div>
         <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
           <div>
             <dt className="text-stone-400">Fecha de nacimiento</dt>
             <dd className="text-huellitas-ink">
               {estudiante.fecha_nacimiento
-                ? new Date(estudiante.fecha_nacimiento).toLocaleDateString("es-PE")
+                ? formatFecha(estudiante.fecha_nacimiento)
                 : "—"}
             </dd>
           </div>
           <div>
             <dt className="text-stone-400">Usuario de acceso</dt>
             <dd className="text-huellitas-ink">{estudiante.email_interno ?? "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-stone-400">Aula / grado</dt>
+            <dd className="text-huellitas-ink">{matricula?.aulas?.nombre ?? "—"}</dd>
           </div>
           <div>
             <dt className="text-stone-400">Contraseña personalizada</dt>
@@ -170,9 +173,7 @@ export default async function EstudianteDetallePage({ params }) {
                       {c.conceptos_cobro?.nombre ?? "Pensión"} {MESES[c.mes]}
                     </td>
                     <td className="py-3 pr-4 text-stone-500">
-                      {c.fecha_vencimiento
-                        ? new Date(c.fecha_vencimiento).toLocaleDateString("es-PE")
-                        : "—"}
+                      {formatFecha(c.fecha_vencimiento)}
                     </td>
                     <td className="py-3 pr-4 text-huellitas-ink">
                       S/ {Number(c.monto_con_descuento ?? c.monto).toFixed(2)}

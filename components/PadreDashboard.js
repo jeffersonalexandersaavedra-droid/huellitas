@@ -9,22 +9,9 @@ import NotaBadge from "@/components/NotaBadge";
 import ModalPagoYape from "@/components/ModalPagoYape";
 import ModalPagoTransferencia from "@/components/ModalPagoTransferencia";
 import ModalCambiarPassword from "@/components/ModalCambiarPassword";
-
-const MESES = [
-  "",
-  "Enero",
-  "Febrero",
-  "Marzo",
-  "Abril",
-  "Mayo",
-  "Junio",
-  "Julio",
-  "Agosto",
-  "Septiembre",
-  "Octubre",
-  "Noviembre",
-  "Diciembre",
-];
+import ModalPagoTotal from "@/components/ModalPagoTotal";
+import PerfilFoto from "@/components/PerfilFoto";
+import { MESES, formatFecha } from "@/lib/fecha";
 
 function getBimestreActual(mes) {
   if (mes <= 5) return 1;
@@ -45,11 +32,13 @@ function resolverMonto(cuota) {
   };
 }
 
-function formatFecha(fecha) {
-  return fecha ? new Date(fecha).toLocaleDateString("es-PE") : "—";
-}
-
-export default function PadreDashboard({ estudiante, matricula, cuotas, notas }) {
+export default function PadreDashboard({
+  estudiante,
+  matricula,
+  cuotas,
+  notas,
+  observaciones = [],
+}) {
   const router = useRouter();
   const anioActual = matricula.anios_escolares?.anio ?? new Date().getFullYear();
   const mesActual = new Date().getMonth() + 1;
@@ -61,9 +50,28 @@ export default function PadreDashboard({ estudiante, matricula, cuotas, notas })
   const [bannerVisible, setBannerVisible] = useState(estudiante.password_cambiado === false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [modalPago, setModalPago] = useState(null);
+  const [showModalTotal, setShowModalTotal] = useState(false);
   const [bimestreActivo, setBimestreActivo] = useState(bimestreActualReal);
   const [showHistorial, setShowHistorial] = useState(false);
   const [toast, setToast] = useState("");
+
+  // Cuotas que se pueden pagar ahora (pendientes o vencidas). Cada una a su
+  // precio real: las vencidas pierden el descuento (S/ 300), las que aún
+  // están en fecha mantienen el descuento. El "Pagar todo" suma todas.
+  const cuotasPagables = cuotas.filter(
+    (c) => c.estado === "pendiente" || c.estado === "vencido"
+  );
+  const detalleTotal = cuotasPagables.map((c) => {
+    const { monto } = resolverMonto(c);
+    return {
+      id: c.id,
+      concepto: `${c.conceptos_cobro?.nombre ?? "Pensión"}${
+        c.mes ? ` ${MESES[c.mes]}` : ""
+      }`,
+      monto,
+    };
+  });
+  const totalPagar = detalleTotal.reduce((s, d) => s + Number(d.monto), 0);
 
   function mostrarToast(mensaje) {
     setToast(mensaje);
@@ -102,6 +110,16 @@ export default function PadreDashboard({ estudiante, matricula, cuotas, notas })
     notasPorBimestre.get(n.bimestre).push(n);
   }
   const notasBimestreActivo = notasPorBimestre.get(bimestreActivo) ?? [];
+
+  const observacionesPorBimestre = new Map();
+  for (const o of observaciones) {
+    if (!observacionesPorBimestre.has(o.bimestre))
+      observacionesPorBimestre.set(o.bimestre, []);
+    observacionesPorBimestre.get(o.bimestre).push(o);
+  }
+  const observacionesBimestreActivo =
+    observacionesPorBimestre.get(bimestreActivo) ?? [];
+
   const estudianteNombre = `${estudiante.nombres} ${estudiante.apellidos}`;
 
   return (
@@ -128,6 +146,38 @@ export default function PadreDashboard({ estudiante, matricula, cuotas, notas })
               Más tarde
             </button>
           </div>
+        </div>
+      )}
+
+      {/* PERFIL DEL ESTUDIANTE */}
+      <PerfilFoto
+        estudianteId={estudiante.id}
+        nombre={estudianteNombre}
+        aula={matricula.aulas?.nombre}
+        dni={estudiante.dni}
+        fotoUrl={estudiante.foto_url}
+      />
+
+      {/* ESTADO DE CUENTA + PAGAR TODO */}
+      {totalPagar > 0 && (
+        <div className="flex flex-col gap-4 rounded-xl bg-huellitas-primary p-6 text-white shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm text-white/80">Total pendiente por pagar</p>
+            <p className="mt-1 font-display text-3xl font-semibold">
+              S/ {totalPagar.toFixed(2)}
+            </p>
+            <p className="mt-1 text-xs text-white/70">
+              {detalleTotal.length} cuota(s). Las vencidas van a su precio
+              completo; las que están en fecha mantienen su descuento.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowModalTotal(true)}
+            className="shrink-0 rounded-lg bg-huellitas-accent px-6 py-3 text-sm font-semibold text-huellitas-primary transition-colors hover:bg-huellitas-accent-dark hover:text-white"
+          >
+            Pagar todo lo pendiente
+          </button>
         </div>
       )}
 
@@ -286,6 +336,21 @@ export default function PadreDashboard({ estudiante, matricula, cuotas, notas })
             </table>
           )}
         </div>
+
+        {observacionesBimestreActivo.length > 0 && (
+          <div className="mt-4 rounded-lg bg-huellitas-primary-light/40 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-huellitas-primary">
+              Observaciones del docente
+            </p>
+            <ul className="mt-2 space-y-1">
+              {observacionesBimestreActivo.map((o) => (
+                <li key={o.id} className="text-sm text-huellitas-ink/80">
+                  {o.texto}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
       {/* MODALES */}
@@ -308,6 +373,16 @@ export default function PadreDashboard({ estudiante, matricula, cuotas, notas })
           onSubmitted={handlePagoEnviado}
         />
       )}
+
+      <ModalPagoTotal
+        open={showModalTotal}
+        onClose={() => setShowModalTotal(false)}
+        matriculaId={matricula.id}
+        estudianteNombre={estudianteNombre}
+        detalle={detalleTotal}
+        total={totalPagar}
+        onSubmitted={handlePagoEnviado}
+      />
 
       <ModalCambiarPassword
         open={showPasswordModal}

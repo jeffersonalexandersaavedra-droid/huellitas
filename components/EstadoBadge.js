@@ -1,7 +1,11 @@
+// Badge de estado para CUOTAS/PAGOS (pendiente, validando, pagado...) y
+// para el estado de MATRÍCULA (activa, retirado, culminado).
+// Nota: "activa" es estado de matrícula = "Activa", NO significa "al día en
+// pagos". El estado de pago se calcula aparte con lib/cuentas.js.
 const ESTADOS = {
   pagado: { label: "Pagado", className: "bg-emerald-50 text-emerald-700" },
   validado: { label: "Validado", className: "bg-emerald-50 text-emerald-700" },
-  activa: { label: "Al día", className: "bg-emerald-50 text-emerald-700" },
+  activa: { label: "Activa", className: "bg-emerald-50 text-emerald-700" },
   verificando: {
     label: "Verificando",
     className: "bg-huellitas-accent/10 text-huellitas-accent-dark",

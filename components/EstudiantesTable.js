@@ -4,18 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Search, Plus } from "lucide-react";
-
-function EstadoCuentaBadge({ conDeuda }) {
-  return (
-    <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-        conDeuda ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700"
-      }`}
-    >
-      {conDeuda ? "Con deuda" : "Al día"}
-    </span>
-  );
-}
+import EstadoCuentaBadge from "@/components/EstadoCuentaBadge";
 
 export default function EstudiantesTable({ estudiantes }) {
   const router = useRouter();

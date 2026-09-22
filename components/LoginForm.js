@@ -68,15 +68,6 @@ export default function LoginForm() {
         />
       </div>
 
-      <div className="text-right">
-        <button
-          type="button"
-          className="text-xs font-medium text-huellitas-accent-dark hover:underline"
-        >
-          ¿Olvidaste tu contraseña?
-        </button>
-      </div>
-
       {error && (
         <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
           {error}

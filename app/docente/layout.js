@@ -1,38 +1,28 @@
 import Image from "next/image";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import PadreUserMenu from "@/components/PadreUserMenu";
+import LogoutButton from "@/components/LogoutButton";
 
-export default async function PadreLayout({ children }) {
+export default async function DocenteLayout({ children }) {
   const supabase = await createClient();
 
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  let estudianteNombre = "";
-  let gradoAula = "";
+  // Guard de rol: solo docentes entran aquí.
+  if (!user) redirect("/login");
+  if (user.app_metadata?.role !== "docente") redirect("/login");
 
-  if (user) {
-    const { data: estudiante } = await supabase
-      .from("estudiantes")
-      .select("id, nombres, apellidos")
-      .eq("user_id", user.id)
-      .maybeSingle();
+  const { data: docente } = await supabase
+    .from("docentes")
+    .select("nombres, apellidos")
+    .eq("user_id", user.id)
+    .maybeSingle();
 
-    if (estudiante) {
-      estudianteNombre = `${estudiante.nombres} ${estudiante.apellidos}`;
-
-      const { data: matricula } = await supabase
-        .from("matriculas")
-        .select("aulas(nombre)")
-        .eq("estudiante_id", estudiante.id)
-        .maybeSingle();
-
-      if (matricula?.aulas) {
-        gradoAula = matricula.aulas.nombre;
-      }
-    }
-  }
+  const nombre = docente
+    ? `${docente.nombres} ${docente.apellidos}`
+    : "Portal del docente";
 
   return (
     <div className="flex min-h-dvh flex-col bg-huellitas-cream">
@@ -53,17 +43,13 @@ export default async function PadreLayout({ children }) {
 
           <div className="min-w-0 flex-1 text-center">
             <p className="truncate font-display text-base font-semibold text-white md:text-lg">
-              {estudianteNombre || "Portal del padre"}
+              {nombre}
             </p>
-            {gradoAula && (
-              <p className="truncate text-xs text-white/80 md:text-sm">
-                {gradoAula}
-              </p>
-            )}
+            <p className="text-xs text-white/80">Docente</p>
           </div>
 
           <div className="shrink-0">
-            <PadreUserMenu />
+            <LogoutButton />
           </div>
         </div>
       </header>

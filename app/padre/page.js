@@ -10,7 +10,7 @@ export default async function PadrePage() {
 
   const { data: estudiante } = await supabase
     .from("estudiantes")
-    .select("id, nombres, apellidos, password_cambiado")
+    .select("id, dni, nombres, apellidos, password_cambiado, foto_url")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -56,12 +56,19 @@ export default async function PadrePage() {
     .eq("matricula_id", matricula.id)
     .order("bimestre", { ascending: true });
 
+  const { data: observaciones } = await supabase
+    .from("observaciones_estudiante")
+    .select("id, bimestre, texto")
+    .eq("matricula_id", matricula.id)
+    .order("bimestre", { ascending: true });
+
   return (
     <PadreDashboard
       estudiante={estudiante}
       matricula={matricula}
       cuotas={cuotas ?? []}
       notas={notas ?? []}
+      observaciones={observaciones ?? []}
     />
   );
 }

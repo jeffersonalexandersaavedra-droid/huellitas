@@ -6,9 +6,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 const DNI_REGEX = /^\d{8}$/;
 const DNI_NOT_FOUND =
-  "No encontramos un estudiante con ese DNI. Verifica el número o comunícate con administración.";
+  "No encontramos a nadie con ese DNI. Verifica el número o comunícate con administración.";
 const SIN_ACCESO =
-  "Este estudiante aún no tiene acceso al portal. Comunícate con administración para activarlo.";
+  "Esta cuenta aún no tiene acceso al portal. Comunícate con administración para activarla.";
 const INVALID_CREDENTIALS =
   "Correo o contraseña incorrectos. Verifica tus datos.";
 const SIN_ROL =
@@ -20,6 +20,8 @@ export async function login(formData) {
 
   let email = identifier;
 
+  // Si escribieron un DNI (8 dígitos), buscamos primero un estudiante y,
+  // si no existe, un docente. El admin siempre entra con su correo.
   if (DNI_REGEX.test(identifier)) {
     const admin = createAdminClient();
 
@@ -29,15 +31,26 @@ export async function login(formData) {
       .eq("dni", identifier)
       .maybeSingle();
 
-    if (!estudiante) {
-      return { error: DNI_NOT_FOUND };
-    }
+    if (estudiante) {
+      if (!estudiante.user_id || !estudiante.email_interno) {
+        return { error: SIN_ACCESO };
+      }
+      email = estudiante.email_interno;
+    } else {
+      const { data: docente } = await admin
+        .from("docentes")
+        .select("user_id, email")
+        .eq("dni", identifier)
+        .maybeSingle();
 
-    if (!estudiante.user_id || !estudiante.email_interno) {
-      return { error: SIN_ACCESO };
+      if (!docente) {
+        return { error: DNI_NOT_FOUND };
+      }
+      if (!docente.user_id || !docente.email) {
+        return { error: SIN_ACCESO };
+      }
+      email = docente.email;
     }
-
-    email = estudiante.email_interno;
   }
 
   const supabase = await createClient();
@@ -54,6 +67,9 @@ export async function login(formData) {
 
   if (role === "admin") {
     redirect("/admin/dashboard");
+  }
+  if (role === "docente") {
+    redirect("/docente");
   }
   if (role === "estudiante") {
     redirect("/padre");

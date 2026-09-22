@@ -1,18 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import EstudiantesTable from "@/components/EstudiantesTable";
+import { estadoCuenta } from "@/lib/cuentas";
 
 export const metadata = { title: "Estudiantes" };
-
-function tieneDeuda(cuotasDeLaMatricula) {
-  const hoy = new Date();
-  return cuotasDeLaMatricula.some((c) => {
-    if (c.estado === "vencido") return true;
-    if (c.estado === "pendiente" || c.estado === "validando") {
-      return c.fecha_vencimiento && new Date(c.fecha_vencimiento) < hoy;
-    }
-    return false;
-  });
-}
 
 export default async function EstudiantesPage() {
   const supabase = await createClient();
@@ -70,7 +60,7 @@ export default async function EstudiantesPage() {
     aula: m.aulas?.nombre ?? "",
     nivel: m.aulas?.nivel ?? "",
     apoderadoPrincipal: principalPorEstudiante.get(m.estudiante_id) ?? "",
-    estadoCuenta: tieneDeuda(cuotasPorMatricula.get(m.id) ?? []) ? "con-deuda" : "al-dia",
+    estadoCuenta: estadoCuenta(cuotasPorMatricula.get(m.id) ?? []),
   }));
 
   return (

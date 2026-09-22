@@ -456,3 +456,158 @@ select id, 'puntualidad', 20 from anios_escolares where anio = 2026;
 
 insert into descuentos (anio_escolar_id, tipo, monto)
 select id, 'hermano', 20 from anios_escolares where anio = 2026;
+
+-- ============================================================
+-- MÓDULO DOCENTE  (agregado — no borra nada de lo anterior)
+-- Rol de acceso: app_metadata.role = 'docente'
+-- El admin crea los docentes y les asigna aulas/cursos.
+-- El docente registra notas y observaciones; el padre las ve.
+-- ============================================================
+
+-- Asignaciones: qué docente dicta qué curso en qué aula/año
+create table if not exists docente_asignaciones (
+  id uuid primary key default gen_random_uuid(),
+  docente_id uuid references docentes(id) on delete cascade,
+  aula_id uuid references aulas(id) on delete cascade,
+  curso text not null,
+  anio_escolar_id uuid references anios_escolares(id) on delete cascade,
+  created_at timestamptz default now(),
+  unique (docente_id, aula_id, curso, anio_escolar_id)
+);
+create index if not exists idx_docasig_docente on docente_asignaciones(docente_id);
+create index if not exists idx_docasig_aula on docente_asignaciones(aula_id);
+
+-- Observaciones por alumno y bimestre (aparte de la nota del curso)
+create table if not exists observaciones_estudiante (
+  id uuid primary key default gen_random_uuid(),
+  matricula_id uuid references matriculas(id) on delete cascade,
+  docente_id uuid references docentes(id) on delete set null,
+  bimestre integer check (bimestre between 1 and 4),
+  texto text not null,
+  fecha_registro timestamptz default now(),
+  registrado_por uuid,
+  unique (matricula_id, docente_id, bimestre)
+);
+create index if not exists idx_obs_matricula on observaciones_estudiante(matricula_id);
+
+-- Funciones auxiliares (security definer) para las políticas RLS.
+create or replace function public.docente_aulas_ids()
+returns setof uuid language sql stable security definer set search_path = public as $$
+  select distinct da.aula_id from docente_asignaciones da
+  join docentes d on d.id = da.docente_id where d.user_id = auth.uid()
+$$;
+
+create or replace function public.docente_puede_curso(p_matricula_id uuid, p_curso text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from matriculas m
+    join docente_asignaciones da on da.aula_id = m.aula_id and da.anio_escolar_id = m.anio_escolar_id
+    join docentes d on d.id = da.docente_id
+    where m.id = p_matricula_id and da.curso = p_curso and d.user_id = auth.uid()
+  )
+$$;
+
+create or replace function public.docente_puede_matricula(p_matricula_id uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from matriculas m
+    join docente_asignaciones da on da.aula_id = m.aula_id and da.anio_escolar_id = m.anio_escolar_id
+    join docentes d on d.id = da.docente_id
+    where m.id = p_matricula_id and d.user_id = auth.uid()
+  )
+$$;
+
+create or replace function public.docente_ve_estudiante(p_estudiante_id uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from matriculas m
+    join docente_asignaciones da on da.aula_id = m.aula_id and da.anio_escolar_id = m.anio_escolar_id
+    join docentes d on d.id = da.docente_id
+    where m.estudiante_id = p_estudiante_id and d.user_id = auth.uid()
+  )
+$$;
+
+-- Solo usuarios autenticados pueden ejecutar estas funciones (no anon).
+revoke execute on function public.docente_aulas_ids() from public;
+revoke execute on function public.docente_puede_curso(uuid, text) from public;
+revoke execute on function public.docente_puede_matricula(uuid) from public;
+revoke execute on function public.docente_ve_estudiante(uuid) from public;
+grant execute on function public.docente_aulas_ids() to authenticated;
+grant execute on function public.docente_puede_curso(uuid, text) to authenticated;
+grant execute on function public.docente_puede_matricula(uuid) to authenticated;
+grant execute on function public.docente_ve_estudiante(uuid) to authenticated;
+
+-- RLS del módulo docente
+alter table docente_asignaciones enable row level security;
+alter table observaciones_estudiante enable row level security;
+
+drop policy if exists "admin_todo_docasig" on docente_asignaciones;
+create policy "admin_todo_docasig" on docente_asignaciones for all
+  using (coalesce((auth.jwt() -> 'app_metadata' ->> 'role'), '') = 'admin');
+drop policy if exists "docente_ve_sus_asignaciones" on docente_asignaciones;
+create policy "docente_ve_sus_asignaciones" on docente_asignaciones for select
+  using (docente_id in (select id from docentes where user_id = auth.uid()));
+
+drop policy if exists "admin_todo_observaciones" on observaciones_estudiante;
+create policy "admin_todo_observaciones" on observaciones_estudiante for all
+  using (coalesce((auth.jwt() -> 'app_metadata' ->> 'role'), '') = 'admin');
+drop policy if exists "docente_gestiona_observaciones" on observaciones_estudiante;
+create policy "docente_gestiona_observaciones" on observaciones_estudiante for all
+  using (coalesce((auth.jwt() -> 'app_metadata' ->> 'role'), '') = 'docente' and public.docente_puede_matricula(matricula_id))
+  with check (coalesce((auth.jwt() -> 'app_metadata' ->> 'role'), '') = 'docente' and public.docente_puede_matricula(matricula_id));
+drop policy if exists "estudiante_ve_sus_observaciones" on observaciones_estudiante;
+create policy "estudiante_ve_sus_observaciones" on observaciones_estudiante for select
+  using (matricula_id in (
+    select m.id from matriculas m join estudiantes e on e.id = m.estudiante_id where e.user_id = auth.uid()
+  ));
+
+drop policy if exists "docente_gestiona_notas" on notas_curso;
+create policy "docente_gestiona_notas" on notas_curso for all
+  using (coalesce((auth.jwt() -> 'app_metadata' ->> 'role'), '') = 'docente' and public.docente_puede_curso(matricula_id, curso))
+  with check (coalesce((auth.jwt() -> 'app_metadata' ->> 'role'), '') = 'docente' and public.docente_puede_curso(matricula_id, curso));
+
+drop policy if exists "docente_ve_matriculas" on matriculas;
+create policy "docente_ve_matriculas" on matriculas for select
+  using (coalesce((auth.jwt() -> 'app_metadata' ->> 'role'), '') = 'docente' and aula_id in (select public.docente_aulas_ids()));
+
+drop policy if exists "docente_ve_estudiantes" on estudiantes;
+create policy "docente_ve_estudiantes" on estudiantes for select
+  using (coalesce((auth.jwt() -> 'app_metadata' ->> 'role'), '') = 'docente' and public.docente_ve_estudiante(id));
+
+drop policy if exists "docente_ve_su_perfil" on docentes;
+create policy "docente_ve_su_perfil" on docentes for select
+  using (user_id = auth.uid());
+
+drop policy if exists "docente_ve_sus_aulas" on aulas;
+create policy "docente_ve_sus_aulas" on aulas for select
+  using (coalesce((auth.jwt() -> 'app_metadata' ->> 'role'), '') = 'docente' and id in (select public.docente_aulas_ids()));
+
+-- ============================================================
+-- PAGO CONSOLIDADO + FOTO DE PERFIL  (agregado)
+-- ============================================================
+
+-- Un pago puede cubrir varias cuotas a la vez
+alter table pagos add column if not exists cuotas_ids uuid[];
+
+-- Foto de perfil del estudiante (URL en storage, opcional)
+alter table estudiantes add column if not exists foto_url text;
+
+-- Bucket de fotos de perfil
+insert into storage.buckets (id, name, public)
+values ('perfiles', 'perfiles', true)
+on conflict (id) do update set public = true;
+
+drop policy if exists "perfiles_estudiante_insert" on storage.objects;
+drop policy if exists "perfiles_estudiante_update" on storage.objects;
+drop policy if exists "perfiles_select_todos" on storage.objects;
+drop policy if exists "perfiles_admin_todo" on storage.objects;
+
+create policy "perfiles_estudiante_insert" on storage.objects for insert to authenticated
+  with check (bucket_id = 'perfiles' and (storage.foldername(name))[1] = auth.uid()::text);
+create policy "perfiles_estudiante_update" on storage.objects for update to authenticated
+  using (bucket_id = 'perfiles' and (storage.foldername(name))[1] = auth.uid()::text);
+create policy "perfiles_select_todos" on storage.objects for select to authenticated
+  using (bucket_id = 'perfiles');
+create policy "perfiles_admin_todo" on storage.objects for all to authenticated
+  using (bucket_id = 'perfiles' and coalesce((auth.jwt() -> 'app_metadata' ->> 'role'), '') = 'admin')
+  with check (bucket_id = 'perfiles' and coalesce((auth.jwt() -> 'app_metadata' ->> 'role'), '') = 'admin');
