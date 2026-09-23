@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Smartphone, Building2, X } from "lucide-react";
+import { AlertTriangle, Smartphone, Building2, X, Lock } from "lucide-react";
 import EstadoBadge from "@/components/EstadoBadge";
 import StepperPago from "@/components/StepperPago";
 import NotaBadge from "@/components/NotaBadge";
@@ -12,13 +12,7 @@ import ModalCambiarPassword from "@/components/ModalCambiarPassword";
 import ModalPagoTotal from "@/components/ModalPagoTotal";
 import PerfilFoto from "@/components/PerfilFoto";
 import { MESES, formatFecha } from "@/lib/fecha";
-
-function getBimestreActual(mes) {
-  if (mes <= 5) return 1;
-  if (mes <= 7) return 2;
-  if (mes <= 9) return 3;
-  return 4;
-}
+import { bimestreActualPorMes, bimestrePagado } from "@/lib/bimestres";
 
 function resolverMonto(cuota) {
   const vencimiento = cuota.fecha_vencimiento ? new Date(cuota.fecha_vencimiento) : null;
@@ -43,7 +37,7 @@ export default function PadreDashboard({
   const router = useRouter();
   const anioActual = matricula.anios_escolares?.anio ?? new Date().getFullYear();
   const mesActual = new Date().getMonth() + 1;
-  const bimestreActualReal = getBimestreActual(mesActual);
+  const bimestreActualReal = bimestreActualPorMes(mesActual);
 
   const cuotaDelMes = cuotas.find((c) => c.mes === mesActual) ?? null;
   const otrasCuotas = cuotas.filter((c) => c.id !== cuotaDelMes?.id);
@@ -62,6 +56,11 @@ export default function PadreDashboard({
   const cuotasPagables = cuotas.filter(
     (c) => c.estado === "pendiente" || c.estado === "vencido"
   );
+  // Regla de pago en orden: solo se puede pagar la cuota MÁS ANTIGUA que se
+  // debe. Las siguientes quedan bloqueadas hasta pagar la anterior. (El botón
+  // "Pagar todo" no se ve afectado, para quienes adelantan cuotas.)
+  const cuotaPagableId =
+    [...cuotasPagables].sort((a, b) => (a.mes ?? 99) - (b.mes ?? 99))[0]?.id ?? null;
   const detalleTotal = cuotasPagables.map((c) => {
     const { monto } = resolverMonto(c);
     return {
@@ -185,7 +184,15 @@ export default function PadreDashboard({
       {/* BLOQUE 1: CUOTA DEL MES */}
       <div className="rounded-xl bg-white p-6 shadow-sm">
         {cuotaDelMes ? (
-          <CuotaDelMes cuota={cuotaDelMes} mesActual={mesActual} onPagar={(metodo) => abrirPago(cuotaDelMes, metodo)} />
+          <CuotaDelMes
+            cuota={cuotaDelMes}
+            mesActual={mesActual}
+            bloqueada={
+              cuotaDelMes.id !== cuotaPagableId &&
+              (cuotaDelMes.estado === "pendiente" || cuotaDelMes.estado === "vencido")
+            }
+            onPagar={(metodo) => abrirPago(cuotaDelMes, metodo)}
+          />
         ) : (
           <p className="text-sm text-huellitas-ink/60">
             No hay una cuota registrada para este mes.
@@ -241,24 +248,30 @@ export default function PadreDashboard({
                       <EstadoBadge estado={cuota.estado} />
                     </td>
                     <td className="py-3 text-right">
-                      {cuota.estado === "pendiente" && (
-                        <div className="flex justify-end gap-3">
-                          <button
-                            type="button"
-                            onClick={() => abrirPago(cuota, "yape")}
-                            className="text-xs font-medium text-huellitas-primary hover:underline"
-                          >
-                            Yape
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => abrirPago(cuota, "transferencia")}
-                            className="text-xs font-medium text-huellitas-primary hover:underline"
-                          >
-                            Transferencia
-                          </button>
-                        </div>
-                      )}
+                      {(cuota.estado === "pendiente" || cuota.estado === "vencido") &&
+                        (cuota.id === cuotaPagableId ? (
+                          <div className="flex justify-end gap-3">
+                            <button
+                              type="button"
+                              onClick={() => abrirPago(cuota, "yape")}
+                              className="text-xs font-medium text-huellitas-primary hover:underline"
+                            >
+                              Yape
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => abrirPago(cuota, "transferencia")}
+                              className="text-xs font-medium text-huellitas-primary hover:underline"
+                            >
+                              Transferencia
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="flex items-center justify-end gap-1 text-xs text-stone-400">
+                            <Lock className="h-3 w-3" strokeWidth={2} />
+                            Paga primero el mes anterior
+                          </span>
+                        ))}
                     </td>
                   </tr>
                 );
@@ -288,14 +301,16 @@ export default function PadreDashboard({
 
         <div className="mt-4 flex gap-2 border-b border-stone-100">
           {[1, 2, 3, 4].map((b) => {
-            const disabled = b > bimestreActualReal;
+            const bloqueadoFuturo = b > bimestreActualReal;
+            const bloqueadoPago = !bimestrePagado(b, cuotas);
+            const disabled = bloqueadoFuturo || bloqueadoPago;
             return (
               <button
                 key={b}
                 type="button"
                 disabled={disabled}
                 onClick={() => setBimestreActivo(b)}
-                className={`border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
+                className={`flex items-center gap-1 border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
                   disabled
                     ? "cursor-not-allowed border-transparent text-stone-300"
                     : bimestreActivo === b
@@ -304,13 +319,25 @@ export default function PadreDashboard({
                 }`}
               >
                 Bimestre {b}
+                {bloqueadoPago && !bloqueadoFuturo && (
+                  <Lock className="h-3 w-3" strokeWidth={2} />
+                )}
               </button>
             );
           })}
         </div>
 
         <div className="mt-4">
-          {notasBimestreActivo.length === 0 ? (
+          {!bimestrePagado(bimestreActivo, cuotas) ? (
+            <div className="flex flex-col items-center gap-2 rounded-lg bg-huellitas-accent/10 py-8 text-center">
+              <Lock className="h-6 w-6 text-huellitas-accent-dark" strokeWidth={2} />
+              <p className="max-w-md text-sm text-huellitas-ink/80">
+                Para ver las notas del bimestre {bimestreActivo} debes estar al
+                día con las pensiones de ese periodo. Regulariza tus pagos para
+                desbloquearlas.
+              </p>
+            </div>
+          ) : notasBimestreActivo.length === 0 ? (
             <p className="py-6 text-center text-sm text-stone-400">
               Las notas del bimestre {bimestreActivo} aún no están disponibles.
             </p>
@@ -338,7 +365,7 @@ export default function PadreDashboard({
           )}
         </div>
 
-        {observacionesBimestreActivo.length > 0 && (
+        {bimestrePagado(bimestreActivo, cuotas) && observacionesBimestreActivo.length > 0 && (
           <div className="mt-4 rounded-lg bg-huellitas-primary-light/40 p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-huellitas-primary">
               Observaciones del docente
@@ -455,7 +482,7 @@ export default function PadreDashboard({
   );
 }
 
-function CuotaDelMes({ cuota, mesActual, onPagar }) {
+function CuotaDelMes({ cuota, mesActual, onPagar, bloqueada = false }) {
   const { monto, descuentoVigente } = resolverMonto(cuota);
   const vencimiento = cuota.fecha_vencimiento ? new Date(cuota.fecha_vencimiento) : null;
   const diasRestantes = vencimiento
@@ -512,26 +539,35 @@ function CuotaDelMes({ cuota, mesActual, onPagar }) {
         <StepperPago estado={cuota.estado} />
       </div>
 
-      {cuota.estado === "pendiente" && (
-        <div className="mt-6 grid grid-cols-2 gap-3">
-          <button
-            type="button"
-            onClick={() => onPagar("yape")}
-            className="flex items-center justify-center gap-2 rounded-lg bg-huellitas-primary px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-huellitas-primary-dark"
-          >
-            <Smartphone className="h-4 w-4 text-huellitas-accent" strokeWidth={2} />
-            Pagar con Yape
-          </button>
-          <button
-            type="button"
-            onClick={() => onPagar("transferencia")}
-            className="flex items-center justify-center gap-2 rounded-lg border border-huellitas-primary px-4 py-3 text-sm font-medium text-huellitas-primary transition-colors hover:bg-huellitas-primary-light"
-          >
-            <Building2 className="h-4 w-4" strokeWidth={2} />
-            Transferencia bancaria
-          </button>
-        </div>
-      )}
+      {(cuota.estado === "pendiente" || cuota.estado === "vencido") &&
+        (bloqueada ? (
+          <div className="mt-6 flex items-start gap-2 rounded-lg bg-huellitas-accent/10 p-3 text-sm text-huellitas-ink/80">
+            <Lock className="mt-0.5 h-4 w-4 shrink-0 text-huellitas-accent-dark" strokeWidth={2} />
+            <span>
+              Para pagar este mes primero debes pagar las pensiones de los meses
+              anteriores. También puedes usar “Pagar todo lo pendiente”.
+            </span>
+          </div>
+        ) : (
+          <div className="mt-6 grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => onPagar("yape")}
+              className="flex items-center justify-center gap-2 rounded-lg bg-huellitas-primary px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-huellitas-primary-dark"
+            >
+              <Smartphone className="h-4 w-4 text-huellitas-accent" strokeWidth={2} />
+              Pagar con Yape
+            </button>
+            <button
+              type="button"
+              onClick={() => onPagar("transferencia")}
+              className="flex items-center justify-center gap-2 rounded-lg border border-huellitas-primary px-4 py-3 text-sm font-medium text-huellitas-primary transition-colors hover:bg-huellitas-primary-light"
+            >
+              <Building2 className="h-4 w-4" strokeWidth={2} />
+              Transferencia bancaria
+            </button>
+          </div>
+        ))}
     </div>
   );
 }
