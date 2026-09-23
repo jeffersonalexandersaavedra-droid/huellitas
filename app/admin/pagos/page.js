@@ -9,7 +9,7 @@ export default async function PagosPage() {
   const { data: pagos } = await supabase
     .from("pagos")
     .select(
-      "id, monto, metodo, banco, numero_operacion, voucher_url, fecha_pago, estado, cuota_id, cuotas_ids, cuotas(mes, conceptos_cobro(nombre)), matriculas(estudiantes(nombres, apellidos, dni), aulas(nombre))"
+      "id, monto, metodo, banco, numero_operacion, voucher_url, fecha_pago, estado, cuota_id, cuotas_ids, pagado_por, pagado_por_parentesco, cuotas(mes, conceptos_cobro(nombre)), matriculas(estudiantes(nombres, apellidos, dni), aulas(nombre))"
     )
     .eq("estado", "validando")
     .order("fecha_pago", { ascending: true });

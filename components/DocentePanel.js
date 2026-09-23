@@ -8,7 +8,7 @@ import { NOTAS_LITERALES, BIMESTRES } from "@/lib/cursos";
 export default function DocentePanel({ docenteId, asignaciones, userId }) {
   const supabase = createClient();
 
-  // Aulas únicas a partir de las asignaciones del docente.
+  // Aulas únicas del docente.
   const aulas = useMemo(() => {
     const map = new Map();
     for (const a of asignaciones) {
@@ -20,35 +20,30 @@ export default function DocentePanel({ docenteId, asignaciones, userId }) {
   }, [asignaciones]);
 
   const [aulaId, setAulaId] = useState(aulas[0]?.id ?? "");
-  const cursosDeAula = useMemo(
-    () => asignaciones.filter((a) => a.aula_id === aulaId).map((a) => a.curso),
-    [asignaciones, aulaId]
-  );
-  const [curso, setCurso] = useState(cursosDeAula[0] ?? "");
   const [bimestre, setBimestre] = useState(1);
 
-  const [filas, setFilas] = useState([]);
+  // Cursos (columnas) que el docente dicta en el aula seleccionada.
+  const cursos = useMemo(
+    () =>
+      asignaciones
+        .filter((a) => a.aula_id === aulaId)
+        .map((a) => a.curso)
+        .sort(),
+    [asignaciones, aulaId]
+  );
+
+  const [estudiantes, setEstudiantes] = useState([]); // [{matriculaId, nombre}]
+  const [notas, setNotas] = useState({}); // { matriculaId: { curso: nota } }
+  const [observaciones, setObservaciones] = useState({}); // { matriculaId: texto }
+  const [orig, setOrig] = useState({ notas: {}, obs: {} });
   const [cargando, setCargando] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState("");
 
   const aulaSel = aulas.find((a) => a.id === aulaId);
 
-  // Si cambia el aula, ajustar el curso al primero disponible.
   useEffect(() => {
-    if (!cursosDeAula.includes(curso)) {
-      setCurso(cursosDeAula[0] ?? "");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aulaId]);
-
-  // Cargar estudiantes + notas + observaciones cuando hay selección completa.
-  useEffect(() => {
-    if (!aulaId || !curso || !bimestre) {
-      setFilas([]);
-      return;
-    }
-
+    if (!aulaId || !bimestre) return;
     let cancelado = false;
 
     async function cargar() {
@@ -57,53 +52,56 @@ export default function DocentePanel({ docenteId, asignaciones, userId }) {
 
       const { data: matriculas } = await supabase
         .from("matriculas")
-        .select("id, estudiantes(id, dni, nombres, apellidos)")
+        .select("id, estudiantes(nombres, apellidos, dni)")
         .eq("aula_id", aulaId)
         .eq("estado", "activa");
 
-      const matriculaIds = (matriculas ?? []).map((m) => m.id);
+      const ids = (matriculas ?? []).map((m) => m.id);
 
-      const [{ data: notas }, { data: observaciones }] = await Promise.all([
-        matriculaIds.length
+      const [{ data: notasData }, { data: obsData }] = await Promise.all([
+        ids.length
           ? supabase
               .from("notas_curso")
-              .select("matricula_id, nota, comentario")
-              .eq("curso", curso)
+              .select("matricula_id, curso, nota")
               .eq("bimestre", bimestre)
-              .in("matricula_id", matriculaIds)
+              .in("matricula_id", ids)
           : Promise.resolve({ data: [] }),
-        matriculaIds.length
+        ids.length
           ? supabase
               .from("observaciones_estudiante")
               .select("matricula_id, texto")
               .eq("docente_id", docenteId)
               .eq("bimestre", bimestre)
-              .in("matricula_id", matriculaIds)
+              .in("matricula_id", ids)
           : Promise.resolve({ data: [] }),
       ]);
 
-      const notaPorMat = new Map((notas ?? []).map((n) => [n.matricula_id, n]));
-      const obsPorMat = new Map((observaciones ?? []).map((o) => [o.matricula_id, o.texto]));
+      const gridNotas = {};
+      for (const n of notasData ?? []) {
+        if (!gridNotas[n.matricula_id]) gridNotas[n.matricula_id] = {};
+        gridNotas[n.matricula_id][n.curso] = n.nota ?? "";
+      }
+      const gridObs = {};
+      for (const o of obsData ?? []) gridObs[o.matricula_id] = o.texto ?? "";
 
-      const nuevasFilas = (matriculas ?? [])
+      const filas = (matriculas ?? [])
         .filter((m) => m.estudiantes)
         .map((m) => ({
           matriculaId: m.id,
-          estudiante: m.estudiantes,
-          nota: notaPorMat.get(m.id)?.nota ?? "",
-          comentario: notaPorMat.get(m.id)?.comentario ?? "",
-          observacion: obsPorMat.get(m.id) ?? "",
-          notaOriginal: notaPorMat.has(m.id),
-          obsOriginal: obsPorMat.has(m.id),
+          nombre: `${m.estudiantes.apellidos} ${m.estudiantes.nombres}`,
+          dni: m.estudiantes.dni,
         }))
-        .sort((a, b) =>
-          `${a.estudiante.apellidos} ${a.estudiante.nombres}`.localeCompare(
-            `${b.estudiante.apellidos} ${b.estudiante.nombres}`
-          )
-        );
+        .sort((a, b) => a.nombre.localeCompare(b.nombre));
 
       if (!cancelado) {
-        setFilas(nuevasFilas);
+        setEstudiantes(filas);
+        setNotas(gridNotas);
+        setObservaciones(gridObs);
+        // Copia profunda para comparar al guardar
+        setOrig({
+          notas: JSON.parse(JSON.stringify(gridNotas)),
+          obs: { ...gridObs },
+        });
         setCargando(false);
       }
     }
@@ -113,12 +111,16 @@ export default function DocentePanel({ docenteId, asignaciones, userId }) {
       cancelado = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aulaId, curso, bimestre]);
+  }, [aulaId, bimestre]);
 
-  function actualizarFila(matriculaId, campo, valor) {
-    setFilas((prev) =>
-      prev.map((f) => (f.matriculaId === matriculaId ? { ...f, [campo]: valor } : f))
-    );
+  function setNota(matriculaId, curso, valor) {
+    setNotas((prev) => ({
+      ...prev,
+      [matriculaId]: { ...(prev[matriculaId] || {}), [curso]: valor },
+    }));
+  }
+  function setObs(matriculaId, valor) {
+    setObservaciones((prev) => ({ ...prev, [matriculaId]: valor }));
   }
 
   async function guardar() {
@@ -126,36 +128,42 @@ export default function DocentePanel({ docenteId, asignaciones, userId }) {
     setMensaje("");
 
     const notasUpsert = [];
-    const notasBorrar = [];
+    const notasBorrar = []; // {matricula_id, curso}
     const obsUpsert = [];
     const obsBorrar = [];
 
-    for (const f of filas) {
-      const nota = f.nota.trim();
-      if (nota) {
-        notasUpsert.push({
-          matricula_id: f.matriculaId,
-          curso,
-          bimestre,
-          nota,
-          comentario: f.comentario.trim() || null,
-          registrado_por: userId ?? null,
-        });
-      } else if (f.notaOriginal) {
-        notasBorrar.push(f.matriculaId);
+    for (const est of estudiantes) {
+      const mId = est.matriculaId;
+      for (const curso of cursos) {
+        const actual = (notas[mId]?.[curso] ?? "").trim();
+        const original = (orig.notas[mId]?.[curso] ?? "").trim();
+        if (actual === original) continue;
+        if (actual) {
+          notasUpsert.push({
+            matricula_id: mId,
+            curso,
+            bimestre,
+            nota: actual,
+            registrado_por: userId ?? null,
+          });
+        } else if (original) {
+          notasBorrar.push({ matricula_id: mId, curso });
+        }
       }
-
-      const texto = f.observacion.trim();
-      if (texto) {
-        obsUpsert.push({
-          matricula_id: f.matriculaId,
-          docente_id: docenteId,
-          bimestre,
-          texto,
-          registrado_por: userId ?? null,
-        });
-      } else if (f.obsOriginal) {
-        obsBorrar.push(f.matriculaId);
+      const obsActual = (observaciones[mId] ?? "").trim();
+      const obsOriginal = (orig.obs[mId] ?? "").trim();
+      if (obsActual !== obsOriginal) {
+        if (obsActual) {
+          obsUpsert.push({
+            matricula_id: mId,
+            docente_id: docenteId,
+            bimestre,
+            texto: obsActual,
+            registrado_por: userId ?? null,
+          });
+        } else if (obsOriginal) {
+          obsBorrar.push(mId);
+        }
       }
     }
 
@@ -166,14 +174,13 @@ export default function DocentePanel({ docenteId, asignaciones, userId }) {
           .upsert(notasUpsert, { onConflict: "matricula_id,curso,bimestre" });
         if (error) throw error;
       }
-      if (notasBorrar.length) {
-        const { error } = await supabase
+      for (const b of notasBorrar) {
+        await supabase
           .from("notas_curso")
           .delete()
-          .eq("curso", curso)
-          .eq("bimestre", bimestre)
-          .in("matricula_id", notasBorrar);
-        if (error) throw error;
+          .eq("matricula_id", b.matricula_id)
+          .eq("curso", b.curso)
+          .eq("bimestre", bimestre);
       }
       if (obsUpsert.length) {
         const { error } = await supabase
@@ -182,59 +189,51 @@ export default function DocentePanel({ docenteId, asignaciones, userId }) {
         if (error) throw error;
       }
       if (obsBorrar.length) {
-        const { error } = await supabase
+        await supabase
           .from("observaciones_estudiante")
           .delete()
           .eq("docente_id", docenteId)
           .eq("bimestre", bimestre)
           .in("matricula_id", obsBorrar);
-        if (error) throw error;
       }
 
-      setMensaje("Cambios guardados correctamente.");
-      setFilas((prev) =>
-        prev.map((f) => ({
-          ...f,
-          notaOriginal: f.nota.trim() !== "",
-          obsOriginal: f.observacion.trim() !== "",
-        }))
-      );
-    } catch (error) {
-      setMensaje(`Error al guardar: ${error.message}`);
+      setOrig({
+        notas: JSON.parse(JSON.stringify(notas)),
+        obs: { ...observaciones },
+      });
+      const cambios = notasUpsert.length + notasBorrar.length + obsUpsert.length + obsBorrar.length;
+      setMensaje(cambios ? "Notas guardadas correctamente." : "No había cambios por guardar.");
+    } catch (e) {
+      setMensaje("Error al guardar: " + e.message);
     } finally {
       setGuardando(false);
     }
   }
 
   function exportarSiage() {
-    const encabezado = [
-      `I.E.P. Huellitas - ${aulaSel?.nombre ?? ""} - ${curso} - Bimestre ${bimestre}`,
-    ];
-    const columnas = ["N°", "Apellidos y Nombres", "DNI", "Nota", "Observación"];
-    const lineas = filas.map((f, i) =>
+    const csvCampo = (v) => {
+      const s = String(v ?? "");
+      return /[";\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const encabezado = `I.E.P. Huellitas - ${aulaSel?.nombre ?? ""} - Bimestre ${bimestre}`;
+    const columnas = ["N°", "Apellidos y Nombres", "DNI", ...cursos, "Observación"];
+    const lineas = estudiantes.map((e, i) =>
       [
         i + 1,
-        `${f.estudiante.apellidos} ${f.estudiante.nombres}`,
-        f.estudiante.dni,
-        f.nota,
-        f.observacion,
+        e.nombre,
+        e.dni,
+        ...cursos.map((c) => notas[e.matriculaId]?.[c] ?? ""),
+        observaciones[e.matriculaId] ?? "",
       ]
         .map(csvCampo)
         .join(";")
     );
-
-    const contenido =
-      "﻿" +
-      [encabezado.join(""), "", columnas.join(";"), ...lineas].join("\r\n");
-
+    const contenido = "﻿" + [encabezado, "", columnas.join(";"), ...lineas].join("\r\n");
     const blob = new Blob([contenido], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `notas_${(aulaSel?.nombre ?? "aula").replace(/\s+/g, "-")}_${curso.replace(
-      /\s+/g,
-      "-"
-    )}_bim${bimestre}.csv`;
+    a.download = `notas_${(aulaSel?.nombre ?? "aula").replace(/\s+/g, "-")}_bim${bimestre}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -244,8 +243,7 @@ export default function DocentePanel({ docenteId, asignaciones, userId }) {
       <div className="rounded-xl bg-white p-8 text-center shadow-sm">
         <BookOpen className="mx-auto h-8 w-8 text-stone-300" strokeWidth={2} />
         <p className="mt-3 text-sm text-huellitas-ink/70">
-          Todavía no tienes aulas ni cursos asignados. Comunícate con
-          administración.
+          Todavía no tienes aulas ni cursos asignados. Comunícate con administración.
         </p>
       </div>
     );
@@ -254,68 +252,40 @@ export default function DocentePanel({ docenteId, asignaciones, userId }) {
   return (
     <div className="space-y-6">
       {/* Selectores */}
-      <div className="grid gap-3 rounded-xl bg-white p-4 shadow-sm sm:grid-cols-3">
+      <div className="grid gap-3 rounded-xl bg-white p-4 shadow-sm sm:grid-cols-2">
         <label className="block">
           <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-stone-400">
             Aula
           </span>
-          <select
-            value={aulaId}
-            onChange={(e) => setAulaId(e.target.value)}
-            className={selectClass}
-          >
+          <select value={aulaId} onChange={(e) => setAulaId(e.target.value)} className={selectClass}>
             {aulas.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.nombre}
-              </option>
+              <option key={a.id} value={a.id}>{a.nombre}</option>
             ))}
           </select>
         </label>
-
-        <label className="block">
-          <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-stone-400">
-            Curso
-          </span>
-          <select
-            value={curso}
-            onChange={(e) => setCurso(e.target.value)}
-            className={selectClass}
-          >
-            {cursosDeAula.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-        </label>
-
         <label className="block">
           <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-stone-400">
             Bimestre
           </span>
-          <select
-            value={bimestre}
-            onChange={(e) => setBimestre(Number(e.target.value))}
-            className={selectClass}
-          >
+          <select value={bimestre} onChange={(e) => setBimestre(Number(e.target.value))} className={selectClass}>
             {BIMESTRES.map((b) => (
-              <option key={b} value={b}>
-                Bimestre {b}
-              </option>
+              <option key={b} value={b}>Bimestre {b}</option>
             ))}
           </select>
         </label>
       </div>
 
-      {/* Tabla de estudiantes */}
+      {/* Matriz */}
       <div className="rounded-xl bg-white p-4 shadow-sm md:p-6">
         {cargando ? (
-          <p className="py-8 text-center text-sm text-stone-400">
-            Cargando estudiantes...
-          </p>
-        ) : filas.length === 0 ? (
+          <p className="py-8 text-center text-sm text-stone-400">Cargando...</p>
+        ) : estudiantes.length === 0 ? (
           <p className="py-8 text-center text-sm text-stone-400">
             No hay estudiantes matriculados en esta aula.
+          </p>
+        ) : cursos.length === 0 ? (
+          <p className="py-8 text-center text-sm text-stone-400">
+            No tienes cursos asignados en esta aula.
           </p>
         ) : (
           <>
@@ -325,58 +295,59 @@ export default function DocentePanel({ docenteId, asignaciones, userId }) {
               ))}
             </datalist>
 
-            <div className="space-y-4">
-              {filas.map((f, i) => (
-                <div
-                  key={f.matriculaId}
-                  className="rounded-lg border border-stone-200 p-3"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-huellitas-ink">
-                        {i + 1}. {f.estudiante.apellidos} {f.estudiante.nombres}
-                      </p>
-                      <p className="text-xs text-stone-400">
-                        DNI {f.estudiante.dni}
-                      </p>
-                    </div>
-                    <input
-                      type="text"
-                      list="notas-literales"
-                      value={f.nota}
-                      onChange={(e) =>
-                        actualizarFila(f.matriculaId, "nota", e.target.value)
-                      }
-                      placeholder="Nota"
-                      className="w-20 shrink-0 rounded-lg border border-stone-300 px-2 py-1.5 text-center text-sm font-semibold text-huellitas-primary outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20"
-                    />
-                  </div>
-
-                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                    <input
-                      type="text"
-                      value={f.comentario}
-                      onChange={(e) =>
-                        actualizarFila(f.matriculaId, "comentario", e.target.value)
-                      }
-                      placeholder="Comentario del curso (opcional)"
-                      className={inputSmall}
-                    />
-                    <input
-                      type="text"
-                      value={f.observacion}
-                      onChange={(e) =>
-                        actualizarFila(f.matriculaId, "observacion", e.target.value)
-                      }
-                      placeholder="Observación general del bimestre (opcional)"
-                      className={inputSmall}
-                    />
-                  </div>
-                </div>
-              ))}
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr>
+                    <th className="sticky left-0 z-10 min-w-[12rem] border-b border-stone-200 bg-white px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-stone-400">
+                      Estudiante
+                    </th>
+                    {cursos.map((c) => (
+                      <th
+                        key={c}
+                        className="border-b border-stone-200 px-2 py-2 text-center text-xs font-medium text-huellitas-primary"
+                      >
+                        {c}
+                      </th>
+                    ))}
+                    <th className="min-w-[14rem] border-b border-stone-200 px-2 py-2 text-left text-xs font-medium uppercase tracking-wide text-stone-400">
+                      Observación
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {estudiantes.map((e, i) => (
+                    <tr key={e.matriculaId} className="hover:bg-huellitas-cream/50">
+                      <td className="sticky left-0 z-10 border-b border-stone-100 bg-white px-3 py-2 text-huellitas-ink">
+                        <span className="text-stone-400">{i + 1}. </span>
+                        {e.nombre}
+                      </td>
+                      {cursos.map((c) => (
+                        <td key={c} className="border-b border-stone-100 px-1 py-1 text-center">
+                          <input
+                            type="text"
+                            list="notas-literales"
+                            value={notas[e.matriculaId]?.[c] ?? ""}
+                            onChange={(ev) => setNota(e.matriculaId, c, ev.target.value)}
+                            className="w-14 rounded-md border border-stone-300 px-1 py-1 text-center text-sm font-semibold text-huellitas-primary outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20"
+                          />
+                        </td>
+                      ))}
+                      <td className="border-b border-stone-100 px-1 py-1">
+                        <input
+                          type="text"
+                          value={observaciones[e.matriculaId] ?? ""}
+                          onChange={(ev) => setObs(e.matriculaId, ev.target.value)}
+                          placeholder="Observación del bimestre"
+                          className="w-full rounded-md border border-stone-200 bg-huellitas-cream px-2 py-1 text-sm outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20"
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
 
-            {/* Acciones */}
             <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <button
                 type="button"
@@ -386,7 +357,6 @@ export default function DocentePanel({ docenteId, asignaciones, userId }) {
                 <Download className="h-4 w-4" strokeWidth={2} />
                 Descargar archivo para SIAGIE
               </button>
-
               <button
                 type="button"
                 onClick={guardar}
@@ -416,17 +386,5 @@ export default function DocentePanel({ docenteId, asignaciones, userId }) {
   );
 }
 
-function csvCampo(valor) {
-  const s = String(valor ?? "");
-  // Escapar comillas y envolver si tiene separador, comillas o saltos.
-  if (/[";\r\n]/.test(s)) {
-    return `"${s.replace(/"/g, '""')}"`;
-  }
-  return s;
-}
-
 const selectClass =
   "w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20";
-
-const inputSmall =
-  "w-full rounded-lg border border-stone-200 bg-huellitas-cream px-3 py-1.5 text-sm text-stone-900 outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20";

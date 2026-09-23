@@ -11,7 +11,6 @@ import {
   KeyRound,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { cursosPorNivel } from "@/lib/cursos";
 import ResetPasswordButton from "@/components/ResetPasswordButton";
 
 const FORM_VACIO = {
@@ -27,6 +26,7 @@ export default function DocentesManager({
   docentes,
   aulas,
   asignaciones,
+  cursos = [],
   anioActivoId,
 }) {
   const router = useRouter();
@@ -154,6 +154,7 @@ export default function DocentesManager({
                 key={d.id}
                 docente={d}
                 aulas={aulas}
+                cursos={cursos}
                 asignaciones={asignaciones.filter((a) => a.docente_id === d.id)}
                 anioActivoId={anioActivoId}
                 expandido={expandido === d.id}
@@ -172,6 +173,7 @@ export default function DocentesManager({
 function DocenteRow({
   docente,
   aulas,
+  cursos,
   asignaciones,
   anioActivoId,
   expandido,
@@ -188,9 +190,12 @@ function DocenteRow({
   const cursosAsignadosAula = asignaciones
     .filter((a) => a.aula_id === aulaId)
     .map((a) => a.curso);
-  // Cursos que todavía se pueden agregar en esta aula (excluye los ya puestos)
+  // Cursos activos del catálogo para el nivel del aula, quitando los ya puestos
   const cursosDisponibles = aulaSel
-    ? cursosPorNivel(aulaSel.nivel).filter((c) => !cursosAsignadosAula.includes(c))
+    ? (cursos || [])
+        .filter((c) => c.nivel === aulaSel.nivel && c.activo)
+        .map((c) => c.nombre)
+        .filter((c) => !cursosAsignadosAula.includes(c))
     : [];
 
   function cambiarAula(id) {

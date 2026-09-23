@@ -611,3 +611,80 @@ create policy "perfiles_select_todos" on storage.objects for select to authentic
 create policy "perfiles_admin_todo" on storage.objects for all to authenticated
   using (bucket_id = 'perfiles' and coalesce((auth.jwt() -> 'app_metadata' ->> 'role'), '') = 'admin')
   with check (bucket_id = 'perfiles' and coalesce((auth.jwt() -> 'app_metadata' ->> 'role'), '') = 'admin');
+
+-- ============================================================
+-- CATÁLOGO DE CURSOS + QUIÉN PAGA  (agregado)
+-- ============================================================
+create table if not exists cursos (
+  id uuid primary key default gen_random_uuid(),
+  nombre text not null,
+  nivel text not null check (nivel in ('inicial', 'primaria')),
+  activo boolean default true,
+  created_at timestamptz default now(),
+  unique (nombre, nivel)
+);
+alter table cursos enable row level security;
+drop policy if exists "cursos_select_autenticados" on cursos;
+create policy "cursos_select_autenticados" on cursos for select to authenticated using (true);
+drop policy if exists "cursos_admin_todo" on cursos;
+create policy "cursos_admin_todo" on cursos for all
+  using (coalesce((auth.jwt() -> 'app_metadata' ->> 'role'), '') = 'admin');
+
+-- Quién realizó el pago
+alter table pagos add column if not exists pagado_por text;
+alter table pagos add column if not exists pagado_por_parentesco text;
+
+-- El estudiante (padre) puede leer sus apoderados/vínculos para elegir quién paga
+drop policy if exists "estudiante_ve_sus_vinculos" on estudiante_apoderado;
+create policy "estudiante_ve_sus_vinculos" on estudiante_apoderado for select
+  using (estudiante_id in (select id from estudiantes where user_id = auth.uid()));
+drop policy if exists "estudiante_ve_sus_apoderados" on apoderados;
+create policy "estudiante_ve_sus_apoderados" on apoderados for select
+  using (id in (
+    select ea.apoderado_id from estudiante_apoderado ea
+    join estudiantes e on e.id = ea.estudiante_id where e.user_id = auth.uid()
+  ));
+
+-- ============================================================
+-- DOCUMENTOS DE LA PÁGINA (transparencia, contrato)  (agregado)
+-- ============================================================
+create table if not exists documentos (
+  id uuid primary key default gen_random_uuid(),
+  titulo text not null,
+  tipo text not null default 'transparencia' check (tipo in ('transparencia','contrato','otro')),
+  archivo_url text not null,
+  publicado boolean default true,
+  created_at timestamptz default now()
+);
+alter table documentos enable row level security;
+drop policy if exists "documentos_publico_select" on documentos;
+create policy "documentos_publico_select" on documentos for select using (publicado = true);
+drop policy if exists "documentos_admin_todo" on documentos;
+create policy "documentos_admin_todo" on documentos for all
+  using (coalesce((auth.jwt() -> 'app_metadata' ->> 'role'), '') = 'admin');
+
+insert into storage.buckets (id, name, public)
+values ('documentos', 'documentos', true)
+on conflict (id) do update set public = true;
+drop policy if exists "documentos_admin_write" on storage.objects;
+create policy "documentos_admin_write" on storage.objects for all to authenticated
+  using (bucket_id = 'documentos' and coalesce((auth.jwt() -> 'app_metadata' ->> 'role'), '') = 'admin')
+  with check (bucket_id = 'documentos' and coalesce((auth.jwt() -> 'app_metadata' ->> 'role'), '') = 'admin');
+
+-- ============================================================
+-- CONTENIDO EDITABLE DE LA PÁGINA PRINCIPAL  (agregado)
+-- ============================================================
+create table if not exists sitio_config (
+  id text primary key,
+  contenido jsonb not null default '{}'::jsonb,
+  updated_at timestamptz default now()
+);
+alter table sitio_config enable row level security;
+drop policy if exists "sitio_public_select" on sitio_config;
+create policy "sitio_public_select" on sitio_config for select using (true);
+drop policy if exists "sitio_admin_todo" on sitio_config;
+create policy "sitio_admin_todo" on sitio_config for all
+  using (coalesce((auth.jwt() -> 'app_metadata' ->> 'role'), '') = 'admin')
+  with check (coalesce((auth.jwt() -> 'app_metadata' ->> 'role'), '') = 'admin');
+insert into sitio_config (id, contenido) values ('landing', '{}'::jsonb)
+on conflict (id) do nothing;

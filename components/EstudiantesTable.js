@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Search, Plus } from "lucide-react";
+import { Search, Plus, Upload } from "lucide-react";
 import EstadoCuentaBadge from "@/components/EstadoCuentaBadge";
 
 export default function EstudiantesTable({ estudiantes }) {
@@ -56,13 +56,22 @@ export default function EstudiantesTable({ estudiantes }) {
           />
         </div>
 
-        <Link
-          href="/admin/estudiantes/nuevo"
-          className="flex shrink-0 items-center justify-center gap-2 rounded-lg bg-huellitas-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-huellitas-primary-dark"
-        >
-          <Plus className="h-4 w-4" strokeWidth={2} />
-          Registrar estudiante
-        </Link>
+        <div className="flex shrink-0 gap-2">
+          <Link
+            href="/admin/estudiantes/importar"
+            className="flex items-center justify-center gap-2 rounded-lg border border-huellitas-primary px-4 py-2 text-sm font-medium text-huellitas-primary transition-colors hover:bg-huellitas-primary-light"
+          >
+            <Upload className="h-4 w-4" strokeWidth={2} />
+            Importar
+          </Link>
+          <Link
+            href="/admin/estudiantes/nuevo"
+            className="flex items-center justify-center gap-2 rounded-lg bg-huellitas-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-huellitas-primary-dark"
+          >
+            <Plus className="h-4 w-4" strokeWidth={2} />
+            Registrar
+          </Link>
+        </div>
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">

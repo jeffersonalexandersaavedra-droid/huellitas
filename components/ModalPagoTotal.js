@@ -3,16 +3,8 @@
 import { useState } from "react";
 import { X, Upload, Smartphone, Building2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-
-const NUMERO_YAPE = "942 608 498";
-const TITULAR_YAPE = "Daysi Reátegui Peláez";
-
-const BANCOS = {
-  bcp: { label: "BCP", cuenta: "191-1234567-0-90", cci: "002-191-001234567090-15", titular: "I.E.P. Huellitas EIRL" },
-  bbva: { label: "BBVA", cuenta: "0011-0234-01-98765432", cci: "011-234-000198765432-15", titular: "I.E.P. Huellitas EIRL" },
-  interbank: { label: "Interbank", cuenta: "898-3001234567", cci: "003-898-003001234567-11", titular: "I.E.P. Huellitas EIRL" },
-  scotiabank: { label: "Scotiabank", cuenta: "000-1234567", cci: "009-000-000001234567-45", titular: "I.E.P. Huellitas EIRL" },
-};
+import { YAPE, BANCOS } from "@/lib/pagoInfo";
+import SelectorApoderado from "@/components/SelectorApoderado";
 
 export default function ModalPagoTotal({
   open,
@@ -21,12 +13,14 @@ export default function ModalPagoTotal({
   estudianteNombre,
   detalle, // [{ id, concepto, monto }]
   total,
+  apoderados = [],
   onSubmitted,
 }) {
   const [metodo, setMetodo] = useState("yape");
   const [banco, setBanco] = useState("bcp");
   const [voucherFile, setVoucherFile] = useState(null);
   const [numeroOperacion, setNumeroOperacion] = useState("");
+  const [pagadorIdx, setPagadorIdx] = useState("0");
   const [confirmado, setConfirmado] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -81,6 +75,7 @@ export default function ModalPagoTotal({
       data: { publicUrl },
     } = supabase.storage.from("vouchers").getPublicUrl(path);
 
+    const pagador = apoderados[Number(pagadorIdx)];
     const { error: pagoError } = await supabase.from("pagos").insert({
       cuota_id: null,
       cuotas_ids: ids,
@@ -91,6 +86,8 @@ export default function ModalPagoTotal({
       numero_operacion: numeroOperacion,
       voucher_url: publicUrl,
       estado: "validando",
+      pagado_por: pagador ? `${pagador.nombres} ${pagador.apellidos}` : null,
+      pagado_por_parentesco: pagador?.parentesco ?? null,
     });
     if (pagoError) {
       setError("No se pudo registrar el pago. Intenta de nuevo.");
@@ -165,20 +162,20 @@ export default function ModalPagoTotal({
           {metodo === "yape" ? (
             <div className="rounded-xl bg-huellitas-primary-light p-4">
               <p className="select-all font-display text-2xl font-semibold text-huellitas-primary">
-                {NUMERO_YAPE}
+                {YAPE.numero}
               </p>
-              <p className="mt-1 text-sm text-huellitas-ink/70">Titular: {TITULAR_YAPE}</p>
+              <p className="mt-1 text-sm text-huellitas-ink/70">Titular: {YAPE.titular}</p>
               <p className="mt-1 text-sm text-huellitas-ink/70">
                 Concepto: {estudianteNombre} · varias cuotas
               </p>
             </div>
           ) : (
             <div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 {Object.entries(BANCOS).map(([key, b]) => (
                   <label
                     key={key}
-                    className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
+                    className={`flex cursor-pointer items-center justify-center rounded-lg border px-2 py-2 text-center text-xs ${
                       banco === key
                         ? "border-huellitas-primary bg-huellitas-primary-light text-huellitas-primary"
                         : "border-stone-200 text-stone-600"
@@ -190,7 +187,7 @@ export default function ModalPagoTotal({
                       value={key}
                       checked={banco === key}
                       onChange={() => setBanco(key)}
-                      className="accent-huellitas-primary"
+                      className="sr-only"
                     />
                     {b.label}
                   </label>
@@ -200,7 +197,6 @@ export default function ModalPagoTotal({
                 <p className="select-all font-display text-lg font-semibold text-huellitas-primary">
                   {cuentaBanco.cuenta}
                 </p>
-                <p className="mt-1 text-sm text-huellitas-ink/70">CCI: {cuentaBanco.cci}</p>
                 <p className="mt-1 text-sm text-huellitas-ink/70">Titular: {cuentaBanco.titular}</p>
               </div>
             </div>
@@ -244,7 +240,12 @@ export default function ModalPagoTotal({
             )}
           </div>
 
-          <div>
+          <div className="space-y-3">
+            <SelectorApoderado
+              apoderados={apoderados}
+              value={pagadorIdx}
+              onChange={setPagadorIdx}
+            />
             <label className="mb-1 block text-xs font-medium text-stone-600">
               Número de operación
             </label>

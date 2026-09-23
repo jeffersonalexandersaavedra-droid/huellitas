@@ -62,6 +62,16 @@ export default async function PadrePage() {
     .eq("matricula_id", matricula.id)
     .order("bimestre", { ascending: true });
 
+  const { data: vinculos } = await supabase
+    .from("estudiante_apoderado")
+    .select("es_principal, apoderados(nombres, apellidos, parentesco)")
+    .eq("estudiante_id", estudiante.id)
+    .order("es_principal", { ascending: false });
+
+  const apoderados = (vinculos ?? [])
+    .map((v) => v.apoderados)
+    .filter(Boolean);
+
   return (
     <PadreDashboard
       estudiante={estudiante}
@@ -69,6 +79,7 @@ export default async function PadrePage() {
       cuotas={cuotas ?? []}
       notas={notas ?? []}
       observaciones={observaciones ?? []}
+      apoderados={apoderados}
     />
   );
 }

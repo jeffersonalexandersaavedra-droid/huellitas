@@ -107,6 +107,12 @@ export default function PagosBandeja({ pagosIniciales }) {
                 · {METODOS[p.metodo] ?? p.metodo}
                 {p.numero_operacion ? ` · Op. ${p.numero_operacion}` : ""}
               </p>
+              {p.pagado_por && (
+                <p className="text-xs text-huellitas-primary">
+                  Pagado por: {p.pagado_por}
+                  {p.pagado_por_parentesco ? ` (${p.pagado_por_parentesco})` : ""}
+                </p>
+              )}
               <p className="text-xs text-stone-400">
                 Enviado el {formatFecha(p.fecha_pago)}
               </p>

@@ -38,6 +38,7 @@ export default function PadreDashboard({
   cuotas,
   notas,
   observaciones = [],
+  apoderados = [],
 }) {
   const router = useRouter();
   const anioActual = matricula.anios_escolares?.anio ?? new Date().getFullYear();
@@ -360,6 +361,7 @@ export default function PadreDashboard({
           onClose={() => setModalPago(null)}
           cuota={modalPago.cuota}
           estudianteNombre={estudianteNombre}
+          apoderados={apoderados}
           onSubmitted={handlePagoEnviado}
         />
       )}
@@ -370,6 +372,7 @@ export default function PadreDashboard({
           onClose={() => setModalPago(null)}
           cuota={modalPago.cuota}
           estudianteNombre={estudianteNombre}
+          apoderados={apoderados}
           onSubmitted={handlePagoEnviado}
         />
       )}
@@ -381,6 +384,7 @@ export default function PadreDashboard({
         estudianteNombre={estudianteNombre}
         detalle={detalleTotal}
         total={totalPagar}
+        apoderados={apoderados}
         onSubmitted={handlePagoEnviado}
       />
 

@@ -8,6 +8,7 @@ const NAV_LINKS = [
   { key: "inicio", href: "#inicio", label: "Inicio" },
   { key: "nosotros", href: "#nosotros", label: "Nosotros" },
   { key: "propuesta", href: "#nosotros", label: "Propuesta" },
+  { key: "transparencia", href: "#transparencia", label: "Transparencia" },
   { key: "contacto", href: "#contacto", label: "Contacto" },
 ];
 

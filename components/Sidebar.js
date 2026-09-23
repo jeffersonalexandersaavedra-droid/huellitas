@@ -11,6 +11,7 @@ import {
   Receipt,
   BarChart3,
   FileText,
+  Globe,
   Settings,
   X,
 } from "lucide-react";
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
   { href: "/admin/facturacion", label: "Facturación", icon: Receipt },
   { href: "/admin/reportes", label: "Reportes", icon: BarChart3 },
   { href: "/admin/notas", label: "Notas", icon: FileText },
+  { href: "/admin/pagina", label: "Menú principal", icon: Globe },
   { href: "/admin/configuracion", label: "Configuración", icon: Settings },
 ];
 

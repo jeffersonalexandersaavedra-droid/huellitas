@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import AdminsManager from "@/components/AdminsManager";
+import CursosManager from "@/components/CursosManager";
 
 export const metadata = { title: "Configuración" };
 
@@ -14,6 +15,12 @@ export default async function ConfiguracionPage() {
   if (user?.app_metadata?.role !== "admin") {
     redirect("/login");
   }
+
+  const { data: cursos } = await supabase
+    .from("cursos")
+    .select("id, nombre, nivel, activo")
+    .order("nivel", { ascending: true })
+    .order("nombre", { ascending: true });
 
   // Listar administradores (requiere service role).
   const admin = createAdminClient();
@@ -38,8 +45,9 @@ export default async function ConfiguracionPage() {
         Administra las cuentas de administrador del sistema.
       </p>
 
-      <div className="mt-6">
+      <div className="mt-6 space-y-6">
         <AdminsManager administradores={administradores} />
+        <CursosManager cursos={cursos ?? []} />
       </div>
     </div>
   );

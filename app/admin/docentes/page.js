@@ -28,6 +28,12 @@ export default async function DocentesPage() {
     .select("id, docente_id, aula_id, curso, aulas(nombre, nivel)")
     .eq("anio_escolar_id", anioActivo?.id ?? "");
 
+  const { data: cursos } = await supabase
+    .from("cursos")
+    .select("id, nombre, nivel, activo")
+    .eq("activo", true)
+    .order("nombre", { ascending: true });
+
   return (
     <div className="mx-auto max-w-4xl">
       <h1 className="font-display text-2xl font-semibold text-huellitas-ink">
@@ -42,6 +48,7 @@ export default async function DocentesPage() {
           docentes={docentes ?? []}
           aulas={aulas ?? []}
           asignaciones={asignaciones ?? []}
+          cursos={cursos ?? []}
           anioActivoId={anioActivo?.id ?? null}
         />
       </div>
