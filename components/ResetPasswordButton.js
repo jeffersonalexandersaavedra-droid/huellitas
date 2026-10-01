@@ -3,13 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { KeyRound, UserPlus, RefreshCw, Check, Copy, X } from "lucide-react";
+import { generarPassword, MENSAJE_PASSWORD, passwordValida } from "@/lib/validacion";
 
-function generarPassword() {
-  const numero = Math.floor(1000 + Math.random() * 9000);
-  return `hue-${numero}`;
-}
-
-// Botón para que el admin gestione la contraseña de un estudiante o docente.
+// Botón para gestionar la contraseña de un estudiante o docente.
 // - tipo: "estudiante" | "docente"
 // - tieneAcceso: si es false, en vez de "cambiar" la contraseña se CREA la
 //   cuenta de acceso (para alumnos registrados sin usuario, user_id null).
@@ -25,8 +21,8 @@ export default function ResetPasswordButton({ tipo, id, tieneAcceso = true }) {
   const modoActivar = !tieneAcceso;
 
   async function guardar() {
-    if (password.trim().length < 6) {
-      setError("La contraseña debe tener al menos 6 caracteres.");
+    if (!passwordValida(password.trim())) {
+      setError(MENSAJE_PASSWORD);
       return;
     }
     setError("");

@@ -1,22 +1,15 @@
 import { createClient } from "@/lib/supabase/server";
 import NotasAdminPanel from "@/components/NotasAdminPanel";
+import { obtenerAnioActivo, aulasDelAnio } from "@/lib/consultas";
 
 export const metadata = { title: "Notas" };
 
 export default async function NotasPage() {
   const supabase = await createClient();
 
-  const { data: anioActivo } = await supabase
-    .from("anios_escolares")
-    .select("id, anio")
-    .eq("activo", true)
-    .maybeSingle();
+  const anioActivo = await obtenerAnioActivo(supabase);
 
-  const { data: aulas } = await supabase
-    .from("aulas")
-    .select("id, nombre, nivel")
-    .eq("anio_escolar_id", anioActivo?.id ?? "")
-    .order("nombre", { ascending: true });
+  const aulas = await aulasDelAnio(supabase, anioActivo?.id);
 
   return (
     <div>
@@ -29,7 +22,7 @@ export default async function NotasPage() {
       </p>
 
       <div className="mt-6">
-        <NotasAdminPanel aulas={aulas ?? []} />
+        <NotasAdminPanel aulas={aulas} />
       </div>
     </div>
   );

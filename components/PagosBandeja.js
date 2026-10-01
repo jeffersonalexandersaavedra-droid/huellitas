@@ -4,16 +4,10 @@ import { useState } from "react";
 import { Check, X, ExternalLink, Inbox } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { MESES, formatFecha } from "@/lib/fecha";
+import { METODOS_PAGO } from "@/lib/pagoInfo";
+import { formatSoles } from "@/lib/cuentas";
 
-const METODOS = {
-  yape: "Yape",
-  plin: "Plin",
-  transferencia: "Transferencia",
-  deposito: "Depósito",
-  efectivo: "Efectivo",
-};
-
-export default function PagosBandeja({ pagosIniciales }) {
+export default function PagosBandeja({ pagosIniciales, usuarioId }) {
   const supabase = createClient();
   const [pagos, setPagos] = useState(pagosIniciales);
   const [procesando, setProcesando] = useState(null);
@@ -35,7 +29,11 @@ export default function PagosBandeja({ pagosIniciales }) {
 
     const { error: pagoErr } = await supabase
       .from("pagos")
-      .update({ estado: nuevoPago, fecha_validacion: new Date().toISOString() })
+      .update({
+        estado: nuevoPago,
+        fecha_validacion: new Date().toISOString(),
+        validado_por: usuarioId,
+      })
       .eq("id", pago.id);
 
     let cuotaErr = null;
@@ -104,7 +102,7 @@ export default function PagosBandeja({ pagosIniciales }) {
                   : `${p.cuotas?.conceptos_cobro?.nombre ?? "Pensión"}${
                       p.cuotas?.mes ? ` · ${MESES[p.cuotas.mes]}` : ""
                     }`}{" "}
-                · {METODOS[p.metodo] ?? p.metodo}
+                · {METODOS_PAGO[p.metodo] ?? p.metodo}
                 {p.numero_operacion ? ` · Op. ${p.numero_operacion}` : ""}
               </p>
               {p.pagado_por && (
@@ -120,7 +118,7 @@ export default function PagosBandeja({ pagosIniciales }) {
 
             <div className="flex items-center gap-3">
               <p className="font-display text-xl font-semibold text-huellitas-primary">
-                S/ {Number(p.monto).toFixed(2)}
+                {formatSoles(p.monto)}
               </p>
 
               {voucher && (

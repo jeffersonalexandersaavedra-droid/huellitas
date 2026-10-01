@@ -11,12 +11,11 @@ import {
   CheckCircle2,
   Copy,
   Check,
+  FileDown,
 } from "lucide-react";
-
-function generarPassword() {
-  const numero = Math.floor(1000 + Math.random() * 9000);
-  return `hue-${numero}`;
-}
+import { inputClass } from "@/lib/ui";
+import { generarPassword } from "@/lib/validacion";
+import Campo from "@/components/Campo";
 
 function apoderadoVacio(esPrincipal) {
   return {
@@ -26,6 +25,7 @@ function apoderadoVacio(esPrincipal) {
     parentesco: "padre",
     telefono: "",
     email: "",
+    direccion: "",
     esPrincipal,
   };
 }
@@ -34,11 +34,11 @@ function estudianteVacio() {
   return { dni: "", nombres: "", apellidos: "", fechaNacimiento: "", password: "" };
 }
 
-export default function RegistrarEstudianteForm({ aulas, docentes }) {
+export default function RegistrarEstudianteForm({ aulas, docentes, aulaInicial = "" }) {
   const router = useRouter();
 
   const [estudiante, setEstudiante] = useState(estudianteVacio());
-  const [aulaId, setAulaId] = useState("");
+  const [aulaId, setAulaId] = useState(aulaInicial);
   const [docenteId, setDocenteId] = useState("");
   const [apoderados, setApoderados] = useState([apoderadoVacio(true)]);
   const [mostrarPassword, setMostrarPassword] = useState(false);
@@ -158,6 +158,13 @@ export default function RegistrarEstudianteForm({ aulas, docentes }) {
         </p>
 
         <div className="mt-6 flex flex-col gap-2">
+          <a
+            href={`/api/contrato/${resultado.estudiante_id}`}
+            className="flex items-center justify-center gap-2 rounded-lg bg-huellitas-accent px-4 py-2.5 text-sm font-medium text-huellitas-ink transition-colors hover:bg-huellitas-accent-dark hover:text-white"
+          >
+            <FileDown className="h-4 w-4" strokeWidth={2} />
+            Descargar contrato
+          </a>
           <button
             type="button"
             onClick={() => router.push(`/admin/estudiantes/${resultado.estudiante_id}`)}
@@ -202,7 +209,7 @@ export default function RegistrarEstudianteForm({ aulas, docentes }) {
               onChange={(e) =>
                 setEstudiante((s) => ({ ...s, dni: e.target.value.replace(/\D/g, "") }))
               }
-              className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20"
+              className={inputClass}
               placeholder="76543210"
             />
           </Campo>
@@ -212,7 +219,7 @@ export default function RegistrarEstudianteForm({ aulas, docentes }) {
               type="date"
               value={estudiante.fechaNacimiento}
               onChange={(e) => setEstudiante((s) => ({ ...s, fechaNacimiento: e.target.value }))}
-              className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20"
+              className={inputClass}
             />
           </Campo>
 
@@ -222,7 +229,7 @@ export default function RegistrarEstudianteForm({ aulas, docentes }) {
               required
               value={estudiante.nombres}
               onChange={(e) => setEstudiante((s) => ({ ...s, nombres: e.target.value }))}
-              className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20"
+              className={inputClass}
             />
           </Campo>
 
@@ -232,7 +239,7 @@ export default function RegistrarEstudianteForm({ aulas, docentes }) {
               required
               value={estudiante.apellidos}
               onChange={(e) => setEstudiante((s) => ({ ...s, apellidos: e.target.value }))}
-              className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20"
+              className={inputClass}
             />
           </Campo>
 
@@ -245,7 +252,7 @@ export default function RegistrarEstudianteForm({ aulas, docentes }) {
                   minLength={6}
                   value={estudiante.password}
                   onChange={(e) => setEstudiante((s) => ({ ...s, password: e.target.value }))}
-                  className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 pr-10 text-sm text-stone-900 outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20"
+                  className={`${inputClass} pr-10`}
                 />
                 <button
                   type="button"
@@ -286,7 +293,7 @@ export default function RegistrarEstudianteForm({ aulas, docentes }) {
               required
               value={aulaId}
               onChange={(e) => setAulaId(e.target.value)}
-              className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20"
+              className={inputClass}
             >
               <option value="">Selecciona un aula</option>
               {aulas.map((a) => (
@@ -306,7 +313,7 @@ export default function RegistrarEstudianteForm({ aulas, docentes }) {
               <select
                 value={docenteId}
                 onChange={(e) => setDocenteId(e.target.value)}
-                className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20"
+                className={inputClass}
               >
                 <option value="">Sin asignar</option>
                 {docentes.map((d) => (
@@ -362,7 +369,7 @@ export default function RegistrarEstudianteForm({ aulas, docentes }) {
                     required
                     value={a.nombres}
                     onChange={(e) => actualizarApoderado(index, "nombres", e.target.value)}
-                    className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20"
+                    className={inputClass}
                   />
                 </Campo>
                 <Campo label="Apellidos">
@@ -371,7 +378,7 @@ export default function RegistrarEstudianteForm({ aulas, docentes }) {
                     required
                     value={a.apellidos}
                     onChange={(e) => actualizarApoderado(index, "apellidos", e.target.value)}
-                    className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20"
+                    className={inputClass}
                   />
                 </Campo>
                 <Campo label="DNI (opcional)">
@@ -382,14 +389,14 @@ export default function RegistrarEstudianteForm({ aulas, docentes }) {
                     onChange={(e) =>
                       actualizarApoderado(index, "dni", e.target.value.replace(/\D/g, ""))
                     }
-                    className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20"
+                    className={inputClass}
                   />
                 </Campo>
                 <Campo label="Parentesco">
                   <select
                     value={a.parentesco}
                     onChange={(e) => actualizarApoderado(index, "parentesco", e.target.value)}
-                    className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20"
+                    className={inputClass}
                   >
                     <option value="padre">Padre</option>
                     <option value="madre">Madre</option>
@@ -401,7 +408,7 @@ export default function RegistrarEstudianteForm({ aulas, docentes }) {
                     type="tel"
                     value={a.telefono}
                     onChange={(e) => actualizarApoderado(index, "telefono", e.target.value)}
-                    className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20"
+                    className={inputClass}
                   />
                 </Campo>
                 <Campo label="Email">
@@ -409,7 +416,16 @@ export default function RegistrarEstudianteForm({ aulas, docentes }) {
                     type="email"
                     value={a.email}
                     onChange={(e) => actualizarApoderado(index, "email", e.target.value)}
-                    className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20"
+                    className={inputClass}
+                  />
+                </Campo>
+                <Campo label="Domicilio" className="sm:col-span-2">
+                  <input
+                    type="text"
+                    value={a.direccion}
+                    onChange={(e) => actualizarApoderado(index, "direccion", e.target.value)}
+                    className={inputClass}
+                    placeholder="Se usa en el contrato de servicio educativo"
                   />
                 </Campo>
               </div>
@@ -449,14 +465,5 @@ export default function RegistrarEstudianteForm({ aulas, docentes }) {
         </button>
       </div>
     </form>
-  );
-}
-
-function Campo({ label, className = "", children }) {
-  return (
-    <div className={className}>
-      <label className="mb-1 block text-sm font-medium text-stone-700">{label}</label>
-      {children}
-    </div>
   );
 }

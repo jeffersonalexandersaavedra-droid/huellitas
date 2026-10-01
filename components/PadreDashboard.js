@@ -1,8 +1,17 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Smartphone, Building2, X, Lock } from "lucide-react";
+import {
+  AlertTriangle,
+  Smartphone,
+  Building2,
+  X,
+  Lock,
+  FileText,
+  ClipboardList,
+} from "lucide-react";
 import EstadoBadge from "@/components/EstadoBadge";
 import StepperPago from "@/components/StepperPago";
 import NotaBadge from "@/components/NotaBadge";
@@ -11,20 +20,9 @@ import ModalPagoTransferencia from "@/components/ModalPagoTransferencia";
 import ModalCambiarPassword from "@/components/ModalCambiarPassword";
 import ModalPagoTotal from "@/components/ModalPagoTotal";
 import PerfilFoto from "@/components/PerfilFoto";
-import { MESES, formatFecha } from "@/lib/fecha";
+import { MESES, formatFecha, aFecha } from "@/lib/fecha";
 import { bimestreActualPorMes, bimestrePagado } from "@/lib/bimestres";
-
-function resolverMonto(cuota) {
-  const vencimiento = cuota.fecha_vencimiento ? new Date(cuota.fecha_vencimiento) : null;
-  const hoy = new Date();
-  const descuentoVigente =
-    cuota.monto_con_descuento != null && vencimiento != null && hoy <= vencimiento;
-
-  return {
-    monto: descuentoVigente ? cuota.monto_con_descuento : cuota.monto,
-    descuentoVigente,
-  };
-}
+import { montoACobrar, siguienteCuotaPorPagar, formatSoles } from "@/lib/cuentas";
 
 export default function PadreDashboard({
   estudiante,
@@ -59,10 +57,9 @@ export default function PadreDashboard({
   // Regla de pago en orden: solo se puede pagar la cuota MÁS ANTIGUA que se
   // debe. Las siguientes quedan bloqueadas hasta pagar la anterior. (El botón
   // "Pagar todo" no se ve afectado, para quienes adelantan cuotas.)
-  const cuotaPagableId =
-    [...cuotasPagables].sort((a, b) => (a.mes ?? 99) - (b.mes ?? 99))[0]?.id ?? null;
+  const cuotaPagableId = siguienteCuotaPorPagar(cuotas)?.id ?? null;
   const detalleTotal = cuotasPagables.map((c) => {
-    const { monto } = resolverMonto(c);
+    const { monto } = montoACobrar(c);
     return {
       id: c.id,
       concepto: `${c.conceptos_cobro?.nombre ?? "Pensión"}${
@@ -79,7 +76,7 @@ export default function PadreDashboard({
   }
 
   function abrirPago(cuota, metodo) {
-    const { monto } = resolverMonto(cuota);
+    const { monto } = montoACobrar(cuota);
     setModalPago({
       metodo,
       cuota: {
@@ -158,13 +155,50 @@ export default function PadreDashboard({
         fotoUrl={estudiante.foto_url}
       />
 
+      {/* DOCUMENTOS DEL ESTUDIANTE */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Link
+          href="/padre/boleta"
+          className="flex items-center gap-3 rounded-xl bg-white p-4 shadow-sm transition-shadow hover:shadow"
+        >
+          <FileText className="h-6 w-6 shrink-0 text-huellitas-primary" strokeWidth={2} />
+          <span>
+            <span className="block text-sm font-semibold text-huellitas-ink">Boleta preventiva</span>
+            <span className="block text-xs text-stone-500">
+              Notas de los bimestres pagados, para descargar o imprimir.
+            </span>
+          </span>
+        </Link>
+        {matricula.aulas?.lista_utiles_url ? (
+          <a
+            href={matricula.aulas.lista_utiles_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 rounded-xl bg-white p-4 shadow-sm transition-shadow hover:shadow"
+          >
+            <ClipboardList className="h-6 w-6 shrink-0 text-huellitas-primary" strokeWidth={2} />
+            <span>
+              <span className="block text-sm font-semibold text-huellitas-ink">Lista de útiles</span>
+              <span className="block text-xs text-stone-500">
+                Descarga la lista de {matricula.aulas.nombre}.
+              </span>
+            </span>
+          </a>
+        ) : (
+          <div className="flex items-center gap-3 rounded-xl bg-white/60 p-4 text-stone-400 shadow-sm">
+            <ClipboardList className="h-6 w-6 shrink-0" strokeWidth={2} />
+            <span className="text-sm">La lista de útiles aún no está publicada.</span>
+          </div>
+        )}
+      </div>
+
       {/* ESTADO DE CUENTA + PAGAR TODO */}
       {totalPagar > 0 && (
         <div className="flex flex-col gap-4 rounded-xl bg-huellitas-primary p-6 text-white shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm text-white/80">Total pendiente por pagar</p>
             <p className="mt-1 font-display text-3xl font-semibold">
-              S/ {totalPagar.toFixed(2)}
+              {formatSoles(totalPagar)}
             </p>
             <p className="mt-1 text-xs text-white/70">
               {detalleTotal.length} cuota(s). Las vencidas van a su precio
@@ -226,7 +260,7 @@ export default function PadreDashboard({
                 </tr>
               )}
               {otrasCuotas.map((cuota) => {
-                const { monto, descuentoVigente } = resolverMonto(cuota);
+                const { monto, descuentoVigente } = montoACobrar(cuota);
                 return (
                   <tr key={cuota.id} className="border-b border-stone-50">
                     <td className="py-3 pr-4 text-huellitas-ink">
@@ -237,7 +271,7 @@ export default function PadreDashboard({
                       {formatFecha(cuota.fecha_vencimiento)}
                     </td>
                     <td className="py-3 pr-4 text-huellitas-ink">
-                      S/ {Number(monto).toFixed(2)}
+                      {formatSoles(monto)}
                       {descuentoVigente && (
                         <span className="ml-1 text-xs text-huellitas-accent-dark">
                           (con descuento)
@@ -448,7 +482,7 @@ export default function PadreDashboard({
               </thead>
               <tbody>
                 {cuotas.map((cuota) => {
-                  const { monto } = resolverMonto(cuota);
+                  const { monto } = montoACobrar(cuota);
                   return (
                     <tr key={cuota.id} className="border-b border-stone-50">
                       <td className="py-3 pr-4 text-huellitas-ink">
@@ -459,7 +493,7 @@ export default function PadreDashboard({
                         {formatFecha(cuota.fecha_vencimiento)}
                       </td>
                       <td className="py-3 pr-4 text-huellitas-ink">
-                        S/ {Number(monto).toFixed(2)}
+                        {formatSoles(monto)}
                       </td>
                       <td className="py-3">
                         <EstadoBadge estado={cuota.estado} />
@@ -483,8 +517,8 @@ export default function PadreDashboard({
 }
 
 function CuotaDelMes({ cuota, mesActual, onPagar, bloqueada = false }) {
-  const { monto, descuentoVigente } = resolverMonto(cuota);
-  const vencimiento = cuota.fecha_vencimiento ? new Date(cuota.fecha_vencimiento) : null;
+  const { monto, descuentoVigente } = montoACobrar(cuota);
+  const vencimiento = cuota.fecha_vencimiento ? aFecha(cuota.fecha_vencimiento) : null;
   const diasRestantes = vencimiento
     ? Math.ceil(
         (vencimiento.setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / 86400000
@@ -508,10 +542,10 @@ function CuotaDelMes({ cuota, mesActual, onPagar, bloqueada = false }) {
           {descuentoVigente ? (
             <div>
               <p className="text-sm text-stone-400 line-through">
-                S/ {Number(cuota.monto).toFixed(2)}
+                {formatSoles(cuota.monto)}
               </p>
               <p className="font-display text-3xl font-semibold text-huellitas-primary">
-                S/ {Number(monto).toFixed(2)}
+                {formatSoles(monto)}
               </p>
               <span className="mt-1 inline-flex items-center rounded-full bg-huellitas-accent px-2.5 py-0.5 text-xs font-semibold text-huellitas-ink">
                 Descuento por pago puntual
@@ -519,7 +553,7 @@ function CuotaDelMes({ cuota, mesActual, onPagar, bloqueada = false }) {
             </div>
           ) : (
             <p className="font-display text-3xl font-semibold text-huellitas-primary">
-              S/ {Number(monto).toFixed(2)}
+              {formatSoles(monto)}
             </p>
           )}
         </div>

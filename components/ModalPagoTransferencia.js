@@ -5,6 +5,7 @@ import { X, Upload, Copy, Check } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { BANCOS } from "@/lib/pagoInfo";
 import SelectorApoderado from "@/components/SelectorApoderado";
+import { formatSoles } from "@/lib/cuentas";
 
 export default function ModalPagoTransferencia({
   open,
@@ -146,7 +147,7 @@ export default function ModalPagoTransferencia({
               </p>
               <p className="mt-1 text-sm text-huellitas-ink/70">Titular: {cuentaBanco.titular}</p>
               <p className="mt-2 font-display text-xl font-semibold text-huellitas-primary">
-                S/ {Number(cuota.monto).toFixed(2)}
+                {formatSoles(cuota.monto)}
               </p>
             </div>
 

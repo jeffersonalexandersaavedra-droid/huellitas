@@ -4,20 +4,15 @@ import { useEffect, useMemo, useState } from "react";
 import { Save, Download, BookOpen } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { NOTAS_LITERALES, BIMESTRES } from "@/lib/cursos";
+import { registroDelAula, aulasDeAsignaciones } from "@/lib/consultas";
+import { descargarExcel } from "@/lib/excel";
+import { COLEGIO } from "@/lib/colegio";
+import { inputClass } from "@/lib/ui";
+import AvisoVacio from "@/components/AvisoVacio";
 
-export default function DocentePanel({ docenteId, asignaciones, userId }) {
+export default function DocentePanel({ docenteId, asignaciones }) {
   const supabase = createClient();
-
-  // Aulas únicas del docente.
-  const aulas = useMemo(() => {
-    const map = new Map();
-    for (const a of asignaciones) {
-      if (a.aulas && !map.has(a.aula_id)) {
-        map.set(a.aula_id, { id: a.aula_id, nombre: a.aulas.nombre, nivel: a.aulas.nivel });
-      }
-    }
-    return [...map.values()].sort((x, y) => x.nombre.localeCompare(y.nombre));
-  }, [asignaciones]);
+  const aulas = useMemo(() => aulasDeAsignaciones(asignaciones), [asignaciones]);
 
   const [aulaId, setAulaId] = useState(aulas[0]?.id ?? "");
   const [bimestre, setBimestre] = useState(1);
@@ -49,61 +44,17 @@ export default function DocentePanel({ docenteId, asignaciones, userId }) {
     async function cargar() {
       setCargando(true);
       setMensaje("");
-
-      const { data: matriculas } = await supabase
-        .from("matriculas")
-        .select("id, estudiantes(nombres, apellidos, dni)")
-        .eq("aula_id", aulaId)
-        .eq("estado", "activa");
-
-      const ids = (matriculas ?? []).map((m) => m.id);
-
-      const [{ data: notasData }, { data: obsData }] = await Promise.all([
-        ids.length
-          ? supabase
-              .from("notas_curso")
-              .select("matricula_id, curso, nota")
-              .eq("bimestre", bimestre)
-              .in("matricula_id", ids)
-          : Promise.resolve({ data: [] }),
-        ids.length
-          ? supabase
-              .from("observaciones_estudiante")
-              .select("matricula_id, texto")
-              .eq("docente_id", docenteId)
-              .eq("bimestre", bimestre)
-              .in("matricula_id", ids)
-          : Promise.resolve({ data: [] }),
-      ]);
-
-      const gridNotas = {};
-      for (const n of notasData ?? []) {
-        if (!gridNotas[n.matricula_id]) gridNotas[n.matricula_id] = {};
-        gridNotas[n.matricula_id][n.curso] = n.nota ?? "";
-      }
-      const gridObs = {};
-      for (const o of obsData ?? []) gridObs[o.matricula_id] = o.texto ?? "";
-
-      const filas = (matriculas ?? [])
-        .filter((m) => m.estudiantes)
-        .map((m) => ({
-          matriculaId: m.id,
-          nombre: `${m.estudiantes.apellidos} ${m.estudiantes.nombres}`,
-          dni: m.estudiantes.dni,
-        }))
-        .sort((a, b) => a.nombre.localeCompare(b.nombre));
-
-      if (!cancelado) {
-        setEstudiantes(filas);
-        setNotas(gridNotas);
-        setObservaciones(gridObs);
-        // Copia profunda para comparar al guardar
-        setOrig({
-          notas: JSON.parse(JSON.stringify(gridNotas)),
-          obs: { ...gridObs },
-        });
-        setCargando(false);
-      }
+      const registro = await registroDelAula(supabase, { aulaId, bimestre, docenteId });
+      if (cancelado) return;
+      setEstudiantes(registro.estudiantes);
+      setNotas(registro.notas);
+      setObservaciones(registro.observaciones);
+      // Copia profunda para comparar al guardar
+      setOrig({
+        notas: JSON.parse(JSON.stringify(registro.notas)),
+        obs: { ...registro.observaciones },
+      });
+      setCargando(false);
     }
 
     cargar();
@@ -126,6 +77,10 @@ export default function DocentePanel({ docenteId, asignaciones, userId }) {
   async function guardar() {
     setGuardando(true);
     setMensaje("");
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const userId = user?.id ?? null;
 
     const notasUpsert = [];
     const notasBorrar = []; // {matricula_id, curso}
@@ -144,7 +99,7 @@ export default function DocentePanel({ docenteId, asignaciones, userId }) {
             curso,
             bimestre,
             nota: actual,
-            registrado_por: userId ?? null,
+            registrado_por: userId,
           });
         } else if (original) {
           notasBorrar.push({ matricula_id: mId, curso });
@@ -159,7 +114,7 @@ export default function DocentePanel({ docenteId, asignaciones, userId }) {
             docente_id: docenteId,
             bimestre,
             texto: obsActual,
-            registrado_por: userId ?? null,
+            registrado_por: userId,
           });
         } else if (obsOriginal) {
           obsBorrar.push(mId);
@@ -210,42 +165,31 @@ export default function DocentePanel({ docenteId, asignaciones, userId }) {
     }
   }
 
-  function exportarSiage() {
-    const csvCampo = (v) => {
-      const s = String(v ?? "");
-      return /[";\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-    };
-    const encabezado = `I.E.P. Huellitas - ${aulaSel?.nombre ?? ""} - Bimestre ${bimestre}`;
-    const columnas = ["N°", "Apellidos y Nombres", "DNI", ...cursos, "Observación"];
-    const lineas = estudiantes.map((e, i) =>
-      [
+  // Registro auxiliar en Excel, listo para transcribir al SIAGIE.
+  function descargarRegistro() {
+    const filas = [
+      [`${COLEGIO.nombre} — Registro auxiliar`],
+      [`Aula: ${aulaSel?.nombre ?? ""}`, `Bimestre ${bimestre}`],
+      [],
+      ["N°", "Apellidos y Nombres", "DNI", ...cursos, "Observación"],
+      ...estudiantes.map((e, i) => [
         i + 1,
         e.nombre,
         e.dni,
         ...cursos.map((c) => notas[e.matriculaId]?.[c] ?? ""),
         observaciones[e.matriculaId] ?? "",
-      ]
-        .map(csvCampo)
-        .join(";")
-    );
-    const contenido = "﻿" + [encabezado, "", columnas.join(";"), ...lineas].join("\r\n");
-    const blob = new Blob([contenido], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `notas_${(aulaSel?.nombre ?? "aula").replace(/\s+/g, "-")}_bim${bimestre}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+      ]),
+    ];
+    descargarExcel(`registro_${aulaSel?.nombre ?? "aula"}_bim${bimestre}`, [
+      { nombre: `Bimestre ${bimestre}`, filas },
+    ]);
   }
 
   if (asignaciones.length === 0) {
     return (
-      <div className="rounded-xl bg-white p-8 text-center shadow-sm">
-        <BookOpen className="mx-auto h-8 w-8 text-stone-300" strokeWidth={2} />
-        <p className="mt-3 text-sm text-huellitas-ink/70">
-          Todavía no tienes aulas ni cursos asignados. Comunícate con administración.
-        </p>
-      </div>
+      <AvisoVacio icono={BookOpen}>
+        Todavía no tienes aulas asignadas. Comunícate con administración.
+      </AvisoVacio>
     );
   }
 
@@ -257,7 +201,7 @@ export default function DocentePanel({ docenteId, asignaciones, userId }) {
           <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-stone-400">
             Aula
           </span>
-          <select value={aulaId} onChange={(e) => setAulaId(e.target.value)} className={selectClass}>
+          <select value={aulaId} onChange={(e) => setAulaId(e.target.value)} className={inputClass}>
             {aulas.map((a) => (
               <option key={a.id} value={a.id}>{a.nombre}</option>
             ))}
@@ -267,7 +211,7 @@ export default function DocentePanel({ docenteId, asignaciones, userId }) {
           <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-stone-400">
             Bimestre
           </span>
-          <select value={bimestre} onChange={(e) => setBimestre(Number(e.target.value))} className={selectClass}>
+          <select value={bimestre} onChange={(e) => setBimestre(Number(e.target.value))} className={inputClass}>
             {BIMESTRES.map((b) => (
               <option key={b} value={b}>Bimestre {b}</option>
             ))}
@@ -351,11 +295,11 @@ export default function DocentePanel({ docenteId, asignaciones, userId }) {
             <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <button
                 type="button"
-                onClick={exportarSiage}
+                onClick={descargarRegistro}
                 className="flex items-center justify-center gap-2 rounded-lg border border-huellitas-primary px-4 py-2.5 text-sm font-medium text-huellitas-primary transition-colors hover:bg-huellitas-primary-light"
               >
                 <Download className="h-4 w-4" strokeWidth={2} />
-                Descargar archivo para SIAGIE
+                Descargar registro auxiliar (Excel)
               </button>
               <button
                 type="button"
@@ -386,5 +330,3 @@ export default function DocentePanel({ docenteId, asignaciones, userId }) {
   );
 }
 
-const selectClass =
-  "w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20";

@@ -6,25 +6,23 @@ import {
   Wallet,
   Inbox,
   TrendingUp,
+  ShieldAlert,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { estadoCuenta, montoVencido } from "@/lib/cuentas";
+import { estadoCuenta, montoVencido, agruparPorMatricula, formatSoles } from "@/lib/cuentas";
 import { MESES } from "@/lib/fecha";
+import { obtenerAnioActivo } from "@/lib/consultas";
 
 export const metadata = { title: "Dashboard" };
 
-const soles = (n) =>
-  `S/ ${Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
 export default async function DashboardPage() {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const esAdmin = user?.app_metadata?.role === "admin";
 
-  const { data: anioActivo } = await supabase
-    .from("anios_escolares")
-    .select("id, anio")
-    .eq("activo", true)
-    .maybeSingle();
-
+  const anioActivo = await obtenerAnioActivo(supabase);
   const anioId = anioActivo?.id ?? "";
 
   const { data: matriculas } = await supabase
@@ -54,11 +52,7 @@ export default async function DashboardPage() {
   const inicial = (matriculas ?? []).filter((m) => m.aulas?.nivel === "inicial").length;
   const primaria = (matriculas ?? []).filter((m) => m.aulas?.nivel === "primaria").length;
 
-  const cuotasPorMatricula = new Map();
-  for (const c of cuotas ?? []) {
-    if (!cuotasPorMatricula.has(c.matricula_id)) cuotasPorMatricula.set(c.matricula_id, []);
-    cuotasPorMatricula.get(c.matricula_id).push(c);
-  }
+  const cuotasPorMatricula = agruparPorMatricula(cuotas ?? []);
 
   let conDeuda = 0;
   for (const mId of matriculaIds) {
@@ -70,7 +64,7 @@ export default async function DashboardPage() {
   const ahora = new Date();
   const ingresosMes = (pagos ?? [])
     .filter((p) => {
-      if (!["pagado", "verificado", "validado"].includes(p.estado)) return false;
+      if (p.estado !== "pagado" && p.estado !== "verificado") return false;
       if (!p.fecha_pago) return false;
       const f = new Date(p.fecha_pago);
       return f.getMonth() === ahora.getMonth() && f.getFullYear() === ahora.getFullYear();
@@ -91,11 +85,26 @@ export default async function DashboardPage() {
   const kpis = [
     { label: "Estudiantes matriculados", valor: total, icon: Users, color: "text-huellitas-primary" },
     { label: "Con deuda vencida", valor: conDeuda, icon: AlertTriangle, color: "text-rose-600" },
-    { label: `Ingresos de ${MESES[ahora.getMonth() + 1]}`, valor: soles(ingresosMes), icon: TrendingUp, color: "text-emerald-600" },
-    { label: "Deuda vencida acumulada", valor: soles(deudaTotal), icon: Wallet, color: "text-huellitas-accent-dark" },
+    { label: `Ingresos de ${MESES[ahora.getMonth() + 1]}`, valor: formatSoles(ingresosMes), icon: TrendingUp, color: "text-emerald-600" },
+    { label: "Deuda vencida acumulada", valor: formatSoles(deudaTotal), icon: Wallet, color: "text-huellitas-accent-dark" },
     { label: "Vouchers por validar", valor: porValidar, icon: Inbox, color: "text-sky-600", href: "/admin/pagos" },
     { label: "Niveles", valor: `${inicial} inicial · ${primaria} primaria`, icon: GraduationCap, color: "text-huellitas-primary" },
   ];
+
+  // Dirección ve además las incidencias que aún no ha leído.
+  if (esAdmin) {
+    const { count } = await supabase
+      .from("incidencias")
+      .select("id", { count: "exact", head: true })
+      .eq("leida", false);
+    kpis.push({
+      label: "Incidencias sin leer",
+      valor: count ?? 0,
+      icon: ShieldAlert,
+      color: "text-rose-600",
+      href: "/admin/incidencias",
+    });
+  }
 
   return (
     <div className="space-y-6">

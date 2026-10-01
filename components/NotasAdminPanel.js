@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { BIMESTRES } from "@/lib/cursos";
-import ExportarCSVButton from "@/components/ExportarCSVButton";
+import { registroDelAula } from "@/lib/consultas";
+import ExportarExcelButton from "@/components/ExportarExcelButton";
+import { controlClass } from "@/lib/ui";
 
 export default function NotasAdminPanel({ aulas }) {
   const supabase = createClient();
@@ -19,63 +21,18 @@ export default function NotasAdminPanel({ aulas }) {
 
     async function cargar() {
       setCargando(true);
-
-      const { data: matriculas } = await supabase
-        .from("matriculas")
-        .select("id, estudiantes(dni, nombres, apellidos)")
-        .eq("aula_id", aulaId)
-        .eq("estado", "activa");
-
-      const ids = (matriculas ?? []).map((m) => m.id);
-
-      const [{ data: notas }, { data: observaciones }] = await Promise.all([
-        ids.length
-          ? supabase
-              .from("notas_curso")
-              .select("matricula_id, curso, nota")
-              .eq("bimestre", bimestre)
-              .in("matricula_id", ids)
-          : Promise.resolve({ data: [] }),
-        ids.length
-          ? supabase
-              .from("observaciones_estudiante")
-              .select("matricula_id, texto")
-              .eq("bimestre", bimestre)
-              .in("matricula_id", ids)
-          : Promise.resolve({ data: [] }),
-      ]);
-
-      const cursosSet = new Set();
-      const notasPorMat = new Map();
-      for (const n of notas ?? []) {
-        cursosSet.add(n.curso);
-        if (!notasPorMat.has(n.matricula_id)) notasPorMat.set(n.matricula_id, {});
-        notasPorMat.get(n.matricula_id)[n.curso] = n.nota;
-      }
-
-      const obsPorMat = new Map();
-      for (const o of observaciones ?? []) {
-        obsPorMat.set(
-          o.matricula_id,
-          [obsPorMat.get(o.matricula_id), o.texto].filter(Boolean).join(" · ")
-        );
-      }
-
-      const nuevasFilas = (matriculas ?? [])
-        .filter((m) => m.estudiantes)
-        .map((m) => ({
-          nombre: `${m.estudiantes.apellidos} ${m.estudiantes.nombres}`,
-          dni: m.estudiantes.dni,
-          notas: notasPorMat.get(m.id) ?? {},
-          observacion: obsPorMat.get(m.id) ?? "",
+      const registro = await registroDelAula(supabase, { aulaId, bimestre });
+      if (cancelado) return;
+      setCursos(registro.cursos);
+      setFilas(
+        registro.estudiantes.map((e) => ({
+          nombre: e.nombre,
+          dni: e.dni,
+          notas: registro.notas[e.matriculaId] ?? {},
+          observacion: registro.observaciones[e.matriculaId] ?? "",
         }))
-        .sort((a, b) => a.nombre.localeCompare(b.nombre));
-
-      if (!cancelado) {
-        setCursos([...cursosSet].sort());
-        setFilas(nuevasFilas);
-        setCargando(false);
-      }
+      );
+      setCargando(false);
     }
 
     cargar();
@@ -87,24 +44,21 @@ export default function NotasAdminPanel({ aulas }) {
 
   const aulaNombre = aulas.find((a) => a.id === aulaId)?.nombre ?? "aula";
 
-  const csv = useMemo(() => {
-    const columns = ["Apellidos y Nombres", "DNI", ...cursos, "Observaciones"];
-    const rows = filas.map((f) => [
+  const excel = useMemo(() => {
+    const columnas = ["Apellidos y Nombres", "DNI", ...cursos, "Observaciones"];
+    const filasExcel = filas.map((f) => [
       f.nombre,
       f.dni,
       ...cursos.map((c) => f.notas[c] ?? ""),
       f.observacion,
     ]);
-    return { columns, rows };
+    return { columnas, filas: filasExcel };
   }, [filas, cursos]);
-
-  const selectClass =
-    "rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20";
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <select value={aulaId} onChange={(e) => setAulaId(e.target.value)} className={selectClass}>
+        <select value={aulaId} onChange={(e) => setAulaId(e.target.value)} className={controlClass}>
           {aulas.map((a) => (
             <option key={a.id} value={a.id}>
               {a.nombre}
@@ -114,7 +68,7 @@ export default function NotasAdminPanel({ aulas }) {
         <select
           value={bimestre}
           onChange={(e) => setBimestre(Number(e.target.value))}
-          className={selectClass}
+          className={controlClass}
         >
           {BIMESTRES.map((b) => (
             <option key={b} value={b}>
@@ -123,10 +77,11 @@ export default function NotasAdminPanel({ aulas }) {
           ))}
         </select>
         <div className="ml-auto">
-          <ExportarCSVButton
-            filename={`notas_${aulaNombre.replace(/\s+/g, "-")}_bim${bimestre}`}
-            columns={csv.columns}
-            rows={csv.rows}
+          <ExportarExcelButton
+            archivo={`notas_${aulaNombre}_bim${bimestre}`}
+            hoja={`Bimestre ${bimestre}`}
+            columnas={excel.columnas}
+            filas={excel.filas}
           />
         </div>
       </div>

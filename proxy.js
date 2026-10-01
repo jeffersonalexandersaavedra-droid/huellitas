@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { puedeVerRuta, rutaInicio } from "@/lib/roles";
 
-// NOTA: en Next.js 16 el archivo "middleware.js" fue renombrado a "proxy.js"
-// (misma función, solo cambia el nombre del archivo y del export).
-
+// En Next.js 16 "middleware.js" se llama "proxy.js". Refresca la sesión de
+// Supabase y deja entrar a cada ruta solo al rol que le corresponde.
 export async function proxy(request) {
   let response = NextResponse.next({ request });
 
@@ -16,9 +16,7 @@ export async function proxy(request) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          );
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
           response = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options)
@@ -32,20 +30,15 @@ export async function proxy(request) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { pathname } = request.nextUrl;
-  const role = user?.app_metadata?.role;
-
-  if (pathname.startsWith("/admin") && role !== "admin") {
-    return NextResponse.redirect(new URL("/login", request.url));
-  }
-
-  if (pathname.startsWith("/padre") && !user) {
-    return NextResponse.redirect(new URL("/login", request.url));
+  const rol = user?.app_metadata?.role;
+  if (!puedeVerRuta(rol, request.nextUrl.pathname)) {
+    // Con sesión pero sin permiso: a su propio inicio; sin sesión: al login.
+    return NextResponse.redirect(new URL(rutaInicio(rol) ?? "/login", request.url));
   }
 
   return response;
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/padre/:path*"],
+  matcher: ["/admin/:path*", "/docente/:path*", "/padre/:path*"],
 };

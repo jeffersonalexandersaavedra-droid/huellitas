@@ -1,42 +1,17 @@
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
+import { estudianteActual, matriculaVigente } from "@/lib/consultas";
 import PadreUserMenu from "@/components/PadreUserMenu";
 
+// El proxy ya garantiza que aquí solo entran cuentas de estudiante.
 export default async function PadreLayout({ children }) {
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  let estudianteNombre = "";
-  let gradoAula = "";
-
-  if (user) {
-    const { data: estudiante } = await supabase
-      .from("estudiantes")
-      .select("id, nombres, apellidos")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (estudiante) {
-      estudianteNombre = `${estudiante.nombres} ${estudiante.apellidos}`;
-
-      const { data: matricula } = await supabase
-        .from("matriculas")
-        .select("aulas(nombre)")
-        .eq("estudiante_id", estudiante.id)
-        .maybeSingle();
-
-      if (matricula?.aulas) {
-        gradoAula = matricula.aulas.nombre;
-      }
-    }
-  }
+  const estudiante = await estudianteActual(supabase);
+  const matricula = estudiante ? await matriculaVigente(supabase, estudiante.id) : null;
 
   return (
     <div className="flex min-h-dvh flex-col bg-huellitas-cream">
-      <header className="bg-gradient-to-r from-huellitas-primary to-huellitas-primary-dark px-4 py-4 md:px-6">
+      <header className="bg-gradient-to-r from-huellitas-primary to-huellitas-primary-dark px-4 py-4 md:px-6 print:hidden">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
           <div className="flex shrink-0 items-center gap-2">
             <Image
@@ -53,12 +28,10 @@ export default async function PadreLayout({ children }) {
 
           <div className="min-w-0 flex-1 text-center">
             <p className="truncate font-display text-base font-semibold text-white md:text-lg">
-              {estudianteNombre || "Portal del padre"}
+              {estudiante ? `${estudiante.nombres} ${estudiante.apellidos}` : "Portal del padre"}
             </p>
-            {gradoAula && (
-              <p className="truncate text-xs text-white/80 md:text-sm">
-                {gradoAula}
-              </p>
+            {matricula?.aulas && (
+              <p className="truncate text-xs text-white/80 md:text-sm">{matricula.aulas.nombre}</p>
             )}
           </div>
 
@@ -68,7 +41,7 @@ export default async function PadreLayout({ children }) {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8 md:px-8">
+      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8 md:px-8 print:max-w-none print:p-0">
         {children}
       </main>
     </div>

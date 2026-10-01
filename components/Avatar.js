@@ -1,17 +1,18 @@
-// Avatar del estudiante: muestra su foto si tiene, o sus iniciales sobre un
-// círculo morado (predeterminado profesional, sin imagen, muy liviano).
+// Foto de perfil o, si no hay, las iniciales sobre un círculo morado
+// (predeterminado liviano). Se usa para estudiantes, docentes y personal.
 function iniciales(nombre) {
   const partes = (nombre || "").trim().split(/\s+/);
   const ini = (partes[0]?.[0] ?? "") + (partes[1]?.[0] ?? "");
   return ini.toUpperCase() || "?";
 }
 
-export default function AvatarEstudiante({ nombre, fotoUrl, size = 48, className = "" }) {
+export default function Avatar({ nombre, fotoUrl, size = 48, className = "" }) {
   const estilo = { width: size, height: size };
 
   if (fotoUrl) {
-    // eslint-disable-next-line @next/next/no-img-element
     return (
+      // Fotos de Storage de tamaño fijo: no necesitan next/image.
+      // eslint-disable-next-line @next/next/no-img-element
       <img
         src={fotoUrl}
         alt={nombre || "Foto de perfil"}

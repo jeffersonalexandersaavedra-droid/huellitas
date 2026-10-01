@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { FileText, Upload, Trash2, Eye, EyeOff, ExternalLink } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { inputClass } from "@/lib/ui";
+import { subirDocumento } from "@/lib/archivos";
 
 const TIPOS = {
   transparencia: "Transparencia",
@@ -29,23 +31,10 @@ export default function DocumentosManager({ documentos }) {
       setError("Escribe un título y elige un archivo.");
       return;
     }
-    if (archivo.size > 10 * 1024 * 1024) {
-      setError("El archivo supera los 10 MB.");
-      return;
-    }
     setError("");
     setSubiendo(true);
     try {
-      const ext = archivo.name.split(".").pop();
-      const path = `${tipo}/${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from("documentos")
-        .upload(path, archivo);
-      if (upErr) throw upErr;
-
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("documentos").getPublicUrl(path);
+      const publicUrl = await subirDocumento(supabase, tipo, archivo);
 
       const { error: insErr } = await supabase.from("documentos").insert({
         titulo: titulo.trim(),
@@ -79,8 +68,6 @@ export default function DocumentosManager({ documentos }) {
     router.refresh();
   }
 
-  const inputClass =
-    "w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20";
 
   return (
     <div className="rounded-xl bg-white p-6 shadow-sm">

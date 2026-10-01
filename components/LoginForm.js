@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { login } from "@/app/login/actions";
+import { inputClass } from "@/lib/ui";
 
 export default function LoginForm() {
   const [identifier, setIdentifier] = useState("");
@@ -42,10 +43,10 @@ export default function LoginForm() {
           type="text"
           required
           autoComplete="username"
-          placeholder="DNI del estudiante o correo del administrador"
+          placeholder="DNI (estudiantes y docentes) o correo (personal)"
           value={identifier}
           onChange={(event) => setIdentifier(event.target.value)}
-          className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20"
+          className={inputClass}
         />
       </div>
 
@@ -64,7 +65,7 @@ export default function LoginForm() {
           autoComplete="current-password"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
-          className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20"
+          className={inputClass}
         />
       </div>
 

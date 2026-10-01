@@ -6,31 +6,39 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   Users,
+  School,
   GraduationCap,
+  ClipboardCheck,
+  ShieldAlert,
+  FileText,
   Wallet,
   Receipt,
   BarChart3,
-  FileText,
   Globe,
   Settings,
   X,
 } from "lucide-react";
 import LogoutButton from "@/components/LogoutButton";
+import { puedeVerRuta } from "@/lib/roles";
 
 const NAV_ITEMS = [
   { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/estudiantes", label: "Estudiantes", icon: Users },
+  { href: "/admin/aulas", label: "Aulas", icon: School },
   { href: "/admin/docentes", label: "Docentes", icon: GraduationCap },
+  { href: "/admin/asistencia", label: "Asistencia", icon: ClipboardCheck },
+  { href: "/admin/incidencias", label: "Incidencias", icon: ShieldAlert },
+  { href: "/admin/notas", label: "Notas", icon: FileText },
   { href: "/admin/pagos", label: "Pagos", icon: Wallet },
   { href: "/admin/facturacion", label: "Facturación", icon: Receipt },
   { href: "/admin/reportes", label: "Reportes", icon: BarChart3 },
-  { href: "/admin/notas", label: "Notas", icon: FileText },
   { href: "/admin/pagina", label: "Menú principal", icon: Globe },
   { href: "/admin/configuracion", label: "Configuración", icon: Settings },
 ];
 
-export default function Sidebar({ open = false, onClose = () => {} }) {
+export default function Sidebar({ rol, open = false, onClose = () => {} }) {
   const pathname = usePathname();
+  const items = NAV_ITEMS.filter((item) => puedeVerRuta(rol, item.href));
 
   return (
     <>
@@ -72,7 +80,7 @@ export default function Sidebar({ open = false, onClose = () => {} }) {
         </div>
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
-          {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+          {items.map(({ href, label, icon: Icon }) => {
             const isActive = pathname.startsWith(href);
             return (
               <Link

@@ -3,8 +3,9 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { rutaInicio } from "@/lib/roles";
+import { DNI_REGEX } from "@/lib/validacion";
 
-const DNI_REGEX = /^\d{8}$/;
 const DNI_NOT_FOUND =
   "No encontramos a nadie con ese DNI. Verifica el número o comunícate con administración.";
 const SIN_ACCESO =
@@ -21,7 +22,7 @@ export async function login(formData) {
   let email = identifier;
 
   // Si escribieron un DNI (8 dígitos), buscamos primero un estudiante y,
-  // si no existe, un docente. El admin siempre entra con su correo.
+  // si no existe, un docente. Administración y secretaría entran con correo.
   if (DNI_REGEX.test(identifier)) {
     const admin = createAdminClient();
 
@@ -63,17 +64,8 @@ export async function login(formData) {
     return { error: INVALID_CREDENTIALS };
   }
 
-  const role = data.user?.app_metadata?.role;
-
-  if (role === "admin") {
-    redirect("/admin/dashboard");
-  }
-  if (role === "docente") {
-    redirect("/docente");
-  }
-  if (role === "estudiante") {
-    redirect("/padre");
-  }
+  const inicio = rutaInicio(data.user?.app_metadata?.role);
+  if (inicio) redirect(inicio);
 
   await supabase.auth.signOut();
   return { error: SIN_ROL };

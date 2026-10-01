@@ -1,22 +1,16 @@
 import { createClient } from "@/lib/supabase/server";
 import RegistrarEstudianteForm from "@/components/RegistrarEstudianteForm";
+import { obtenerAnioActivo, aulasDelAnio } from "@/lib/consultas";
 
 export const metadata = { title: "Registrar estudiante" };
 
-export default async function NuevoEstudiantePage() {
+export default async function NuevoEstudiantePage({ searchParams }) {
+  const { aula } = await searchParams;
   const supabase = await createClient();
 
-  const { data: anioActivo } = await supabase
-    .from("anios_escolares")
-    .select("id")
-    .eq("activo", true)
-    .maybeSingle();
+  const anioActivo = await obtenerAnioActivo(supabase);
 
-  const { data: aulas } = await supabase
-    .from("aulas")
-    .select("id, nombre, nivel")
-    .eq("anio_escolar_id", anioActivo?.id ?? "")
-    .order("nombre", { ascending: true });
+  const aulas = await aulasDelAnio(supabase, anioActivo?.id);
 
   const { data: docentes } = await supabase
     .from("docentes")
@@ -35,7 +29,11 @@ export default async function NuevoEstudiantePage() {
       </p>
 
       <div className="mt-6">
-        <RegistrarEstudianteForm aulas={aulas ?? []} docentes={docentes ?? []} />
+        <RegistrarEstudianteForm
+          aulas={aulas}
+          docentes={docentes ?? []}
+          aulaInicial={aulas.some((a) => a.id === aula) ? aula : ""}
+        />
       </div>
     </div>
   );

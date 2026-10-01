@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import * as XLSX from "xlsx";
 import { Upload, Download, CheckCircle2, AlertTriangle, FileSpreadsheet } from "lucide-react";
+import { inputClass } from "@/lib/ui";
+import { DNI_REGEX } from "@/lib/validacion";
 
 // Busca el valor de una fila por varios posibles nombres de columna.
 function campo(fila, claves) {
@@ -38,7 +40,10 @@ export default function ImportarEstudiantes({ aulas }) {
         .map((row) => {
           const apellidos = String(campo(row, ["apellido"])).trim();
           const nombres = String(campo(row, ["nombre"])).trim();
-          const dni = String(campo(row, ["dni", "documento"])).replace(/\D/g, "");
+          // Acepta el DNI o el código del estudiante del SIAGIE ("000000" + DNI).
+          const dni = String(campo(row, ["dni", "documento", "código", "codigo"]))
+            .replace(/\D/g, "")
+            .replace(/^0{6}(\d{8})$/, "$1");
           let fecha = campo(row, ["fecha", "nacimiento"]);
           if (fecha instanceof Date) fecha = fecha.toISOString().slice(0, 10);
           else fecha = String(fecha).trim();
@@ -47,7 +52,7 @@ export default function ImportarEstudiantes({ aulas }) {
             nombres,
             dni,
             fechaNacimiento: fecha,
-            valido: /^\d{8}$/.test(dni) && Boolean(apellidos) && Boolean(nombres),
+            valido: DNI_REGEX.test(dni) && Boolean(apellidos) && Boolean(nombres),
           };
         })
         .filter((f) => f.apellidos || f.nombres || f.dni);
@@ -99,8 +104,6 @@ export default function ImportarEstudiantes({ aulas }) {
     }
   }
 
-  const inputClass =
-    "w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20";
 
   return (
     <div className="space-y-6">

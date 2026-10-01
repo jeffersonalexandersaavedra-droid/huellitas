@@ -1,21 +1,17 @@
 import { createClient } from "@/lib/supabase/server";
-import ExportarCSVButton from "@/components/ExportarCSVButton";
+import ExportarExcelButton from "@/components/ExportarExcelButton";
 import EstadoCuentaBadge from "@/components/EstadoCuentaBadge";
-import { tieneDeuda, montoVencido } from "@/lib/cuentas";
+import { tieneDeuda, montoVencido, agruparPorMatricula, formatSoles } from "@/lib/cuentas";
+import { obtenerAnioActivo } from "@/lib/consultas";
+import { MESES, formatFecha } from "@/lib/fecha";
+import { METODOS_PAGO } from "@/lib/pagoInfo";
 
 export const metadata = { title: "Reportes" };
-
-const soles = (n) =>
-  `S/ ${Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default async function ReportesPage() {
   const supabase = await createClient();
 
-  const { data: anioActivo } = await supabase
-    .from("anios_escolares")
-    .select("id, anio")
-    .eq("activo", true)
-    .maybeSingle();
+  const anioActivo = await obtenerAnioActivo(supabase);
 
   const anioId = anioActivo?.id ?? "";
 
@@ -27,24 +23,28 @@ export default async function ReportesPage() {
 
   const matriculaIds = (matriculas ?? []).map((m) => m.id);
 
-  const { data: cuotas } = matriculaIds.length
-    ? await supabase
-        .from("cuotas")
-        .select("matricula_id, monto, monto_con_descuento, estado, fecha_vencimiento")
-        .in("matricula_id", matriculaIds)
-    : { data: [] };
+  const [{ data: cuotas }, { data: pagos }] = matriculaIds.length
+    ? await Promise.all([
+        supabase
+          .from("cuotas")
+          .select("matricula_id, monto, estado, fecha_vencimiento")
+          .in("matricula_id", matriculaIds),
+        supabase
+          .from("pagos")
+          .select(
+            "monto, metodo, numero_operacion, fecha_pago, pagado_por, cuotas_ids, cuotas(mes), matriculas(estudiantes(dni, nombres, apellidos), aulas(nombre))"
+          )
+          .in("matricula_id", matriculaIds)
+          .in("estado", ["pagado", "verificado"])
+          .order("fecha_pago", { ascending: true }),
+      ])
+    : [{ data: [] }, { data: [] }];
 
-  const cuotasPorMat = new Map();
-  for (const c of cuotas ?? []) {
-    if (!cuotasPorMat.has(c.matricula_id)) cuotasPorMat.set(c.matricula_id, []);
-    cuotasPorMat.get(c.matricula_id).push(c);
-  }
+  const cuotasPorMat = agruparPorMatricula(cuotas ?? []);
 
-  // Totales de cobranza
+  // Totales de cobranza: lo esperado según pensiones y lo realmente pagado.
   const totalEsperado = (cuotas ?? []).reduce((s, c) => s + Number(c.monto || 0), 0);
-  const totalRecaudado = (cuotas ?? [])
-    .filter((c) => c.estado === "pagado")
-    .reduce((s, c) => s + Number(c.monto_con_descuento ?? c.monto ?? 0), 0);
+  const totalRecaudado = (pagos ?? []).reduce((s, p) => s + Number(p.monto || 0), 0);
   const totalVencido = montoVencido(cuotas ?? []);
 
   // Filas por estudiante
@@ -69,7 +69,7 @@ export default async function ReportesPage() {
     .filter((f) => f.conDeuda)
     .sort((a, b) => b.vencido - a.vencido);
 
-  const csvColumns = [
+  const columnas = [
     "Apellidos y Nombres",
     "DNI",
     "Aula",
@@ -78,7 +78,7 @@ export default async function ReportesPage() {
     "Deuda vencida (S/)",
     "Estado",
   ];
-  const csvRows = filas
+  const filasExcel = filas
     .slice()
     .sort((a, b) => a.nombre.localeCompare(b.nombre))
     .map((f) => [
@@ -87,14 +87,33 @@ export default async function ReportesPage() {
       f.aula,
       f.pagadas,
       f.pendientes,
-      f.vencido.toFixed(2),
+      Number(f.vencido.toFixed(2)),
       f.conDeuda ? "Con deuda" : "Al día",
     ]);
 
+  // Pagos recibidos (caja + vouchers validados) para el reporte de ingresos.
+  const columnasPagos = ["Fecha", "Estudiante", "DNI", "Aula", "Concepto", "Método", "N.° operación", "Pagado por", "Monto (S/)"];
+  const filasPagos = (pagos ?? []).map((p) => {
+    const est = p.matriculas?.estudiantes;
+    return [
+      formatFecha(p.fecha_pago),
+      est ? `${est.apellidos} ${est.nombres}` : "—",
+      est?.dni ?? "—",
+      p.matriculas?.aulas?.nombre ?? "—",
+      p.cuotas_ids?.length > 1
+        ? `${p.cuotas_ids.length} pensiones`
+        : `Pensión ${MESES[p.cuotas?.mes] ?? ""}`.trim(),
+      METODOS_PAGO[p.metodo] ?? p.metodo,
+      p.numero_operacion ?? "",
+      p.pagado_por ?? "",
+      Number(p.monto),
+    ];
+  });
+
   const cards = [
-    { label: "Esperado (año)", valor: soles(totalEsperado) },
-    { label: "Recaudado", valor: soles(totalRecaudado) },
-    { label: "Deuda vencida", valor: soles(totalVencido) },
+    { label: "Esperado (año)", valor: formatSoles(totalEsperado) },
+    { label: "Recaudado", valor: formatSoles(totalRecaudado) },
+    { label: "Deuda vencida", valor: formatSoles(totalVencido) },
     { label: "Estudiantes con deuda", valor: morosos.length },
   ];
 
@@ -109,12 +128,22 @@ export default async function ReportesPage() {
             Resumen del año {anioActivo?.anio ?? ""} y estudiantes con deuda.
           </p>
         </div>
-        <ExportarCSVButton
-          filename={`cobranza_${anioActivo?.anio ?? "anio"}`}
-          columns={csvColumns}
-          rows={csvRows}
-          label="Exportar cobranza"
-        />
+        <div className="flex flex-wrap gap-2">
+          <ExportarExcelButton
+            archivo={`cobranza_${anioActivo?.anio ?? "anio"}`}
+            hoja="Cobranza"
+            columnas={columnas}
+            filas={filasExcel}
+            label="Exportar cobranza"
+          />
+          <ExportarExcelButton
+            archivo={`pagos_recibidos_${anioActivo?.anio ?? "anio"}`}
+            hoja="Pagos"
+            columnas={columnasPagos}
+            filas={filasPagos}
+            label="Exportar pagos recibidos"
+          />
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -158,7 +187,7 @@ export default async function ReportesPage() {
                     <td className="py-3 pr-4 text-stone-600">{f.aula}</td>
                     <td className="py-3 pr-4 text-stone-600">{f.pendientes}</td>
                     <td className="py-3 pr-4 font-medium text-rose-600">
-                      {soles(f.vencido)}
+                      {formatSoles(f.vencido)}
                     </td>
                     <td className="py-3">
                       <EstadoCuentaBadge conDeuda={f.conDeuda} />

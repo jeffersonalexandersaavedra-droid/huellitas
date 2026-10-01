@@ -2,23 +2,16 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import ImportarEstudiantes from "@/components/ImportarEstudiantes";
+import { obtenerAnioActivo, aulasDelAnio } from "@/lib/consultas";
 
 export const metadata = { title: "Importar estudiantes" };
 
 export default async function ImportarPage() {
   const supabase = await createClient();
 
-  const { data: anioActivo } = await supabase
-    .from("anios_escolares")
-    .select("id")
-    .eq("activo", true)
-    .maybeSingle();
+  const anioActivo = await obtenerAnioActivo(supabase);
 
-  const { data: aulas } = await supabase
-    .from("aulas")
-    .select("id, nombre, nivel")
-    .eq("anio_escolar_id", anioActivo?.id ?? "")
-    .order("nombre", { ascending: true });
+  const aulas = await aulasDelAnio(supabase, anioActivo?.id);
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -39,7 +32,7 @@ export default async function ImportarPage() {
       </p>
 
       <div className="mt-6">
-        <ImportarEstudiantes aulas={aulas ?? []} />
+        <ImportarEstudiantes aulas={aulas} />
       </div>
     </div>
   );

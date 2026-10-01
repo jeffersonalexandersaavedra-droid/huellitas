@@ -1,17 +1,14 @@
 import { createClient } from "@/lib/supabase/server";
 import EstudiantesTable from "@/components/EstudiantesTable";
-import { estadoCuenta } from "@/lib/cuentas";
+import { estadoCuenta, agruparPorMatricula } from "@/lib/cuentas";
+import { obtenerAnioActivo } from "@/lib/consultas";
 
 export const metadata = { title: "Estudiantes" };
 
 export default async function EstudiantesPage() {
   const supabase = await createClient();
 
-  const { data: anioActivo } = await supabase
-    .from("anios_escolares")
-    .select("id")
-    .eq("activo", true)
-    .maybeSingle();
+  const anioActivo = await obtenerAnioActivo(supabase);
 
   const { data: matriculas } = await supabase
     .from("matriculas")
@@ -46,11 +43,7 @@ export default async function EstudiantesPage() {
     ])
   );
 
-  const cuotasPorMatricula = new Map();
-  for (const c of cuotas ?? []) {
-    if (!cuotasPorMatricula.has(c.matricula_id)) cuotasPorMatricula.set(c.matricula_id, []);
-    cuotasPorMatricula.get(c.matricula_id).push(c);
-  }
+  const cuotasPorMatricula = agruparPorMatricula(cuotas ?? []);
 
   const estudiantes = (matriculas ?? []).map((m) => ({
     id: m.estudiantes.id,

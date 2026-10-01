@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import ResetPasswordButton from "@/components/ResetPasswordButton";
+import { inputClass } from "@/lib/ui";
+import Campo from "@/components/Campo";
 
 const FORM_VACIO = {
   nombres: "",
@@ -59,7 +61,12 @@ export default function DocentesManager({
       if (!res.ok) {
         setError(data.error || "No se pudo registrar al docente.");
       } else {
-        setCredenciales({ dni: data.dni, email: data.email, password: data.password });
+        setCredenciales({
+          dni: data.dni,
+          email: data.email,
+          password: data.password,
+          correoPropio: Boolean(form.email.trim()),
+        });
         setForm(FORM_VACIO);
         setExpandido(data.docente_id);
         router.refresh();
@@ -101,7 +108,7 @@ export default function DocentesManager({
           <Campo label="Correo (opcional)">
             <input type="email" value={form.email}
               onChange={(e) => actualizar("email", e.target.value)} className={inputClass}
-              placeholder="Si lo dejas vacío se genera uno interno" />
+              placeholder="Opcional: también podrá entrar con él" />
           </Campo>
           <Campo label="Contraseña temporal" required>
             <input type="text" required minLength={6} value={form.password}
@@ -119,10 +126,13 @@ export default function DocentesManager({
                   <KeyRound className="h-4 w-4" strokeWidth={2} />
                   Docente creado. Entrega estos datos de acceso:
                 </p>
-                <p className="mt-1">DNI: <b>{credenciales.dni}</b></p>
-                <p>Correo: <b>{credenciales.email}</b></p>
+                <p className="mt-1">Usuario (DNI): <b>{credenciales.dni}</b></p>
                 <p>Contraseña: <b>{credenciales.password}</b></p>
-                <p className="mt-1 text-xs text-huellitas-ink/60">Puede ingresar con su DNI o su correo.</p>
+                {credenciales.correoPropio && (
+                  <p className="mt-1 text-xs text-huellitas-ink/60">
+                    También puede ingresar con su correo {credenciales.email}.
+                  </p>
+                )}
               </div>
             )}
             <button type="submit" disabled={creando}
@@ -388,17 +398,3 @@ function DocenteRow({
     </div>
   );
 }
-
-function Campo({ label, required, children }) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-sm font-medium text-stone-700">
-        {label} {required && <span className="text-rose-500">*</span>}
-      </span>
-      {children}
-    </label>
-  );
-}
-
-const inputClass =
-  "w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20";

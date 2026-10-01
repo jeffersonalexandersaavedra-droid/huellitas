@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { BookOpen, Plus, Trash2, Eye, EyeOff } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { inputClass } from "@/lib/ui";
 
 // CRUD del catálogo de cursos (áreas) que luego se asignan a docentes y se
 // usan al registrar notas. Administrable por el admin.
@@ -53,8 +54,6 @@ export default function CursosManager({ cursos }) {
 
   const porNivel = (n) => cursos.filter((c) => c.nivel === n);
 
-  const inputClass =
-    "w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20";
 
   return (
     <div className="rounded-xl bg-white p-6 shadow-sm">

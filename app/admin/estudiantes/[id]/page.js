@@ -1,11 +1,12 @@
 import { notFound } from "next/navigation";
+import { FileDown } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import EstadoBadge from "@/components/EstadoBadge";
 import EstadoCuentaBadge from "@/components/EstadoCuentaBadge";
 import NotaBadge from "@/components/NotaBadge";
 import ResetPasswordButton from "@/components/ResetPasswordButton";
 import { MESES, formatFecha } from "@/lib/fecha";
-import { tieneDeuda } from "@/lib/cuentas";
+import { tieneDeuda, montoACobrar, formatSoles } from "@/lib/cuentas";
 
 export const metadata = { title: "Ficha del estudiante" };
 
@@ -15,7 +16,7 @@ export default async function EstudianteDetallePage({ params }) {
 
   const { data: estudiante } = await supabase
     .from("estudiantes")
-    .select("id, dni, nombres, apellidos, fecha_nacimiento, activo, email_interno, password_cambiado, user_id")
+    .select("id, dni, nombres, apellidos, fecha_nacimiento, activo, password_cambiado, user_id")
     .eq("id", id)
     .maybeSingle();
 
@@ -33,7 +34,7 @@ export default async function EstudianteDetallePage({ params }) {
 
   const { data: vinculos } = await supabase
     .from("estudiante_apoderado")
-    .select("es_principal, apoderados(nombres, apellidos, parentesco, telefono, email)")
+    .select("es_principal, apoderados(nombres, apellidos, parentesco, telefono, email, direccion)")
     .eq("estudiante_id", id);
 
   const [cuotasRes, notasRes] = matricula
@@ -72,13 +73,24 @@ export default async function EstudianteDetallePage({ params }) {
           <EstadoBadge estado={estudiante.activo ? "activa" : "retirado"} />
           <EstadoCuentaBadge conDeuda={conDeuda} />
         </div>
-        <p className="mt-1 text-sm text-stone-500">
-          DNI <span className="font-mono">{estudiante.dni}</span>
-          {matricula?.aulas && (
-            <> · {matricula.aulas.nombre} ({matricula.aulas.nivel})</>
+        <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-stone-500">
+            DNI <span className="font-mono">{estudiante.dni}</span>
+            {matricula?.aulas && (
+              <> · {matricula.aulas.nombre} ({matricula.aulas.nivel})</>
+            )}
+            {matricula?.anios_escolares && <> · {matricula.anios_escolares.anio}</>}
+          </p>
+          {matricula && (
+            <a
+              href={`/api/contrato/${estudiante.id}`}
+              className="flex items-center gap-2 rounded-lg bg-huellitas-accent px-3 py-1.5 text-sm font-medium text-huellitas-ink transition-colors hover:bg-huellitas-accent-dark hover:text-white"
+            >
+              <FileDown className="h-4 w-4" strokeWidth={2} />
+              Descargar contrato
+            </a>
           )}
-          {matricula?.anios_escolares && <> · {matricula.anios_escolares.anio}</>}
-        </p>
+        </div>
       </div>
 
       <section className="rounded-xl bg-white p-6 shadow-sm">
@@ -102,8 +114,10 @@ export default async function EstudianteDetallePage({ params }) {
             </dd>
           </div>
           <div>
-            <dt className="text-stone-400">Usuario de acceso</dt>
-            <dd className="text-huellitas-ink">{estudiante.email_interno ?? "—"}</dd>
+            <dt className="text-stone-400">Acceso al portal</dt>
+            <dd className="text-huellitas-ink">
+              {estudiante.user_id ? `Ingresa con su DNI (${estudiante.dni})` : "Sin activar"}
+            </dd>
           </div>
           <div>
             <dt className="text-stone-400">Aula / grado</dt>
@@ -143,6 +157,7 @@ export default async function EstudianteDetallePage({ params }) {
                 </p>
                 <p className="mt-2 text-sm text-stone-600">{v.apoderados?.telefono || "—"}</p>
                 <p className="text-sm text-stone-600">{v.apoderados?.email || "—"}</p>
+                <p className="text-sm text-stone-600">{v.apoderados?.direccion || "—"}</p>
               </div>
             ))}
           </div>
@@ -176,7 +191,7 @@ export default async function EstudianteDetallePage({ params }) {
                       {formatFecha(c.fecha_vencimiento)}
                     </td>
                     <td className="py-3 pr-4 text-huellitas-ink">
-                      S/ {Number(c.monto_con_descuento ?? c.monto).toFixed(2)}
+                      {formatSoles(montoACobrar(c).monto)}
                     </td>
                     <td className="py-3">
                       <EstadoBadge estado={c.estado} />

@@ -6,12 +6,12 @@ import { Menu } from "lucide-react";
 import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
 
-export default function AdminShell({ children }) {
+export default function AdminShell({ rol, nombre, children }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <div className="flex h-dvh">
-      <Sidebar open={menuOpen} onClose={() => setMenuOpen(false)} />
+      <Sidebar rol={rol} open={menuOpen} onClose={() => setMenuOpen(false)} />
 
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Barra superior móvil (solo < md) */}
@@ -39,7 +39,7 @@ export default function AdminShell({ children }) {
         </div>
 
         {/* Header de escritorio (solo >= md) */}
-        <Header />
+        <Header nombre={nombre} rol={rol} />
 
         <main className="flex-1 overflow-y-auto bg-huellitas-cream p-4 md:p-6">
           {children}

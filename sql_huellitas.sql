@@ -688,3 +688,140 @@ create policy "sitio_admin_todo" on sitio_config for all
   with check (coalesce((auth.jwt() -> 'app_metadata' ->> 'role'), '') = 'admin');
 insert into sitio_config (id, contenido) values ('landing', '{}'::jsonb)
 on conflict (id) do nothing;
+
+-- ============================================================
+-- 3.ª REUNIÓN: SECRETARIA, AULAS, PERFIL DOCENTE, ASISTENCIA,
+-- INCIDENCIAS, CONTRATO  (agregado — no borra nada anterior)
+-- ============================================================
+
+-- Rol del usuario autenticado ('admin' | 'secretaria' | 'docente' | 'estudiante')
+create or replace function public.rol_actual()
+returns text language sql stable set search_path = '' as $$
+  select coalesce(auth.jwt() -> 'app_metadata' ->> 'role', '')
+$$;
+
+-- Secretaria: matricula, recibe pagos y descarga reportes.
+do $$
+declare t text;
+begin
+  foreach t in array array['estudiantes', 'apoderados', 'estudiante_apoderado', 'matriculas', 'cuotas', 'pagos'] loop
+    execute format('drop policy if exists "secretaria_todo_%1$s" on public.%1$I', t);
+    execute format(
+      'create policy "secretaria_todo_%1$s" on public.%1$I for all
+         using (public.rol_actual() = ''secretaria'')
+         with check (public.rol_actual() = ''secretaria'')', t);
+  end loop;
+end $$;
+drop policy if exists "secretaria_ve_docentes" on docentes;
+create policy "secretaria_ve_docentes" on docentes for select
+  using (public.rol_actual() = 'secretaria');
+drop policy if exists "secretaria_ve_notas" on notas_curso;
+create policy "secretaria_ve_notas" on notas_curso for select
+  using (public.rol_actual() = 'secretaria');
+
+-- Quién validó un pago (admin o secretaria). Si se elimina esa cuenta,
+-- el pago se conserva.
+alter table pagos drop constraint if exists pagos_validado_por_fkey;
+alter table pagos add constraint pagos_validado_por_fkey
+  foreign key (validado_por) references auth.users(id) on delete set null;
+
+-- Domicilio del apoderado (lo pide el contrato de servicio educativo)
+alter table apoderados add column if not exists direccion text;
+
+-- Aulas: lista de útiles descargable por el padre
+alter table aulas add column if not exists lista_utiles_url text;
+
+-- Perfil profesional del docente (visible para los padres)
+alter table docentes add column if not exists foto_url text;
+alter table docentes add column if not exists especialidad text;
+alter table docentes add column if not exists bio text;
+
+create or replace function public.actualizar_perfil_docente(p_especialidad text, p_bio text, p_foto_url text)
+returns void language sql security definer set search_path = public as $$
+  update docentes
+     set especialidad = nullif(trim(p_especialidad), ''),
+         bio = nullif(trim(p_bio), ''),
+         foto_url = coalesce(p_foto_url, foto_url)
+   where user_id = auth.uid()
+$$;
+
+-- Docentes del aula del estudiante (solo datos públicos del perfil) y
+-- cuál es su tutor(a) de matrícula.
+create or replace function public.mis_docentes()
+returns table (docente_id uuid, nombres text, apellidos text, especialidad text, bio text, foto_url text, cursos text[], es_tutor boolean)
+language sql stable security definer set search_path = public as $$
+  select d.id, d.nombres, d.apellidos, d.especialidad, d.bio, d.foto_url,
+         array_agg(distinct da.curso order by da.curso),
+         bool_or(d.id = m.docente_id)
+    from estudiantes e
+    join matriculas m on m.estudiante_id = e.id and m.estado = 'activa'
+    join docente_asignaciones da on da.aula_id = m.aula_id and da.anio_escolar_id = m.anio_escolar_id
+    join docentes d on d.id = da.docente_id and d.activo
+   where e.user_id = auth.uid()
+   group by d.id
+$$;
+
+revoke execute on function public.actualizar_perfil_docente(text, text, text) from public, anon;
+revoke execute on function public.mis_docentes() from public, anon;
+grant execute on function public.actualizar_perfil_docente(text, text, text) to authenticated;
+grant execute on function public.mis_docentes() to authenticated;
+
+-- Enlace de Drive "Unidades de docentes": lo define el admin y lo ven
+-- solo los docentes (la fila 'landing' sigue siendo pública).
+drop policy if exists "sitio_public_select" on sitio_config;
+create policy "sitio_public_select" on sitio_config for select using (id = 'landing');
+drop policy if exists "sitio_docentes_select" on sitio_config;
+create policy "sitio_docentes_select" on sitio_config for select to authenticated
+  using (id = 'docentes' and public.rol_actual() = 'docente');
+insert into sitio_config (id, contenido) values ('docentes', '{}'::jsonb)
+on conflict (id) do nothing;
+
+-- Incidencias (tutoría): el docente redacta, dirección las lee.
+create table if not exists incidencias (
+  id uuid primary key default gen_random_uuid(),
+  docente_id uuid not null references docentes(id) on delete cascade,
+  aula_id uuid references aulas(id) on delete set null,
+  titulo text not null,
+  descripcion text not null,
+  fecha date not null default current_date,
+  leida boolean not null default false,
+  created_at timestamptz default now()
+);
+create index if not exists idx_incidencias_docente on incidencias(docente_id);
+alter table incidencias enable row level security;
+drop policy if exists "admin_todo_incidencias" on incidencias;
+create policy "admin_todo_incidencias" on incidencias for all
+  using (public.rol_actual() = 'admin') with check (public.rol_actual() = 'admin');
+drop policy if exists "docente_ve_sus_incidencias" on incidencias;
+create policy "docente_ve_sus_incidencias" on incidencias for select
+  using (public.rol_actual() = 'docente' and docente_id in (select id from docentes where user_id = auth.uid()));
+drop policy if exists "docente_crea_incidencias" on incidencias;
+create policy "docente_crea_incidencias" on incidencias for insert
+  with check (public.rol_actual() = 'docente' and docente_id in (select id from docentes where user_id = auth.uid()));
+
+-- Asistencia diaria por estudiante
+create table if not exists asistencias (
+  id uuid primary key default gen_random_uuid(),
+  matricula_id uuid not null references matriculas(id) on delete cascade,
+  fecha date not null,
+  estado text not null check (estado in ('asistio', 'tardanza', 'falta_justificada', 'falta_injustificada')),
+  registrado_por uuid default auth.uid() references auth.users(id) on delete set null,
+  updated_at timestamptz default now(),
+  unique (matricula_id, fecha)
+);
+create index if not exists idx_asistencias_fecha on asistencias(fecha);
+alter table asistencias enable row level security;
+drop policy if exists "admin_todo_asistencias" on asistencias;
+create policy "admin_todo_asistencias" on asistencias for all
+  using (public.rol_actual() = 'admin') with check (public.rol_actual() = 'admin');
+drop policy if exists "docente_gestiona_asistencias" on asistencias;
+create policy "docente_gestiona_asistencias" on asistencias for all
+  using (public.rol_actual() = 'docente' and public.docente_puede_matricula(matricula_id))
+  with check (public.rol_actual() = 'docente' and public.docente_puede_matricula(matricula_id));
+
+-- Las funciones auxiliares del módulo docente no deben poder ejecutarse sin
+-- iniciar sesión (Supabase concede EXECUTE a "anon" por defecto).
+revoke execute on function public.docente_aulas_ids() from anon;
+revoke execute on function public.docente_puede_curso(uuid, text) from anon;
+revoke execute on function public.docente_puede_matricula(uuid) from anon;
+revoke execute on function public.docente_ve_estudiante(uuid) from anon;

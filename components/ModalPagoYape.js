@@ -5,6 +5,7 @@ import { X, Upload, Copy, Check } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { YAPE } from "@/lib/pagoInfo";
 import SelectorApoderado from "@/components/SelectorApoderado";
+import { formatSoles } from "@/lib/cuentas";
 
 export default function ModalPagoYape({
   open,
@@ -128,7 +129,7 @@ export default function ModalPagoYape({
                 Concepto: {estudianteNombre} - {cuota.concepto}
               </p>
               <p className="mt-2 font-display text-xl font-semibold text-huellitas-primary">
-                S/ {Number(cuota.monto).toFixed(2)}
+                {formatSoles(cuota.monto)}
               </p>
             </div>
             <button

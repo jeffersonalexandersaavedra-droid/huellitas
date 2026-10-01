@@ -5,6 +5,7 @@ import { X, Upload, Smartphone, Building2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { YAPE, BANCOS } from "@/lib/pagoInfo";
 import SelectorApoderado from "@/components/SelectorApoderado";
+import { formatSoles } from "@/lib/cuentas";
 
 export default function ModalPagoTotal({
   open,
@@ -124,14 +125,14 @@ export default function ModalPagoTotal({
               {detalle.map((d) => (
                 <li key={d.id} className="flex justify-between text-sm text-stone-600">
                   <span>{d.concepto}</span>
-                  <span>S/ {Number(d.monto).toFixed(2)}</span>
+                  <span>{formatSoles(d.monto)}</span>
                 </li>
               ))}
             </ul>
             <div className="mt-3 flex justify-between border-t border-stone-100 pt-3">
               <span className="font-medium text-huellitas-ink">Total</span>
               <span className="font-display text-xl font-semibold text-huellitas-primary">
-                S/ {Number(total).toFixed(2)}
+                {formatSoles(total)}
               </span>
             </div>
           </div>
@@ -278,7 +279,7 @@ export default function ModalPagoTotal({
             onClick={handleSubmit}
             className="w-full rounded-lg bg-huellitas-primary px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-huellitas-primary-dark disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {loading ? "Enviando..." : `Enviar pago de S/ ${Number(total).toFixed(2)}`}
+            {loading ? "Enviando..." : `Enviar pago de ${formatSoles(total)}`}
           </button>
         </div>
       </div>
