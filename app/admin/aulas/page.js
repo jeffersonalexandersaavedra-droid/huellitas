@@ -3,8 +3,9 @@ import AulasManager from "@/components/AulasManager";
 
 export const metadata = { title: "Aulas" };
 
-// Aulas como "cajas": cada una muestra sus docentes, sus estudiantes y la
-// lista de útiles que descargan los padres. Se organizan por año escolar.
+// Aulas como "cajas" agrupadas por grado y sección (3° Primaria A, B...):
+// cada una muestra sus docentes, sus estudiantes y la lista de útiles que
+// descargan los padres. Se organizan por año escolar.
 export default async function AulasPage({ searchParams }) {
   const { anio: anioParam } = await searchParams;
   const supabase = await createClient();
@@ -20,7 +21,7 @@ export default async function AulasPage({ searchParams }) {
   const { data: aulasData } = await supabase
     .from("aulas")
     .select(
-      "id, nombre, nivel, lista_utiles_url, matriculas(id, estado, estudiantes(id, dni, nombres, apellidos)), docente_asignaciones(curso, docentes(id, nombres, apellidos))"
+      "id, nombre, grado, seccion, nivel, lista_utiles_url, matriculas(id, estado, estudiantes(id, dni, nombres, apellidos)), docente_asignaciones(curso, docentes(id, nombres, apellidos))"
     )
     .eq("anio_escolar_id", anioSel?.id ?? "")
     .order("nombre", { ascending: true });
@@ -48,6 +49,8 @@ export default async function AulasPage({ searchParams }) {
     return {
       id: a.id,
       nombre: a.nombre,
+      grado: a.grado,
+      seccion: a.seccion,
       nivel: a.nivel,
       listaUtilesUrl: a.lista_utiles_url,
       totalMatriculas: (a.matriculas ?? []).length,
@@ -60,8 +63,8 @@ export default async function AulasPage({ searchParams }) {
     <div className="mx-auto max-w-5xl">
       <h1 className="font-display text-2xl font-semibold text-huellitas-ink">Aulas</h1>
       <p className="mt-1 text-sm text-stone-500">
-        Crea las aulas de cada año, revisa qué docentes y estudiantes tiene cada una y sube su
-        lista de útiles.
+        Organiza cada año por grados y secciones (por ejemplo 3° Primaria A, B y C). Abre una
+        sección para ver sus docentes y estudiantes y subir su lista de útiles.
       </p>
 
       <div className="mt-6">

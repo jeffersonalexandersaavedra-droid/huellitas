@@ -3,12 +3,12 @@ import Docxtemplater from "docxtemplater";
 import { createClient } from "@/lib/supabase/server";
 import { usuarioConRol, respuestaError, noAutorizado } from "@/lib/api";
 import { fechaLarga } from "@/lib/fecha";
+import { NIVELES } from "@/lib/grados";
 
 // Plantilla oficial del colegio con etiquetas {padre_nombre}, {grado}, etc.
 // Cuando cambie el contrato (cada año) basta reemplazar este .docx
 // manteniendo las mismas etiquetas.
 const PLANTILLA = "/plantillas/contrato_servicio_educativo.docx";
-const NIVELES = { inicial: "Inicial", primaria: "Primaria" };
 
 const mayus = (texto) => (texto ?? "").toUpperCase();
 

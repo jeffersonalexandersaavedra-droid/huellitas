@@ -7,12 +7,12 @@ import { bimestresDesbloqueados } from "@/lib/bimestres";
 import { BIMESTRES } from "@/lib/cursos";
 import { COLEGIO } from "@/lib/colegio";
 import { fechaLarga } from "@/lib/fecha";
+import { NIVELES } from "@/lib/grados";
 import ImprimirButton from "@/components/ImprimirButton";
 import AvisoVacio from "@/components/AvisoVacio";
 
 export const metadata = { title: "Boleta preventiva" };
 
-const NIVELES = { inicial: "Inicial", primaria: "Primaria" };
 const COLOR_NOTA = { AD: "text-emerald-700", A: "text-huellitas-primary", B: "text-amber-700", C: "text-rose-700" };
 
 // Boleta preventiva: notas del registro auxiliar de los bimestres pagados

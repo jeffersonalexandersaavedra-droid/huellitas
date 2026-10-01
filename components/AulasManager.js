@@ -15,20 +15,22 @@ import {
   CalendarPlus,
   CheckCircle2,
   UserPlus,
+  ChevronDown,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { subirDocumento } from "@/lib/archivos";
-import { inputClass } from "@/lib/ui";
+import { NIVELES, GRADOS, SECCIONES, ordenGrado, siguienteSeccion } from "@/lib/grados";
+import { inputClass, cantidad } from "@/lib/ui";
 import Campo from "@/components/Campo";
 
-const NIVELES = { inicial: "Inicial", primaria: "Primaria" };
+const SIN_SECCION = "";
 
 export default function AulasManager({ anios, anioSel, aulas }) {
   const router = useRouter();
   const supabase = createClient();
   const [error, setError] = useState("");
   const [ocupado, setOcupado] = useState(false);
-  const [nueva, setNueva] = useState({ nombre: "", nivel: "primaria" });
+  const [nueva, setNueva] = useState({ nivel: "primaria", grado: GRADOS.primaria[0], seccion: "A" });
   const [nuevoAnio, setNuevoAnio] = useState("");
 
   // Ejecuta una acción sobre la base y refresca la página; muestra el error si falla.
@@ -39,7 +41,11 @@ export default function AulasManager({ anios, anioSel, aulas }) {
       await accion();
       router.refresh();
     } catch (e) {
-      setError(e.message || "No se pudo completar la acción.");
+      setError(
+        e.code === "23505"
+          ? "Esa sección ya existe en este grado."
+          : e.message || "No se pudo completar la acción."
+      );
     } finally {
       setOcupado(false);
     }
@@ -49,16 +55,50 @@ export default function AulasManager({ anios, anioSel, aulas }) {
     if (err) throw err;
   };
 
+  // El nombre visible (ej. "3° Primaria A") lo arma la base con grado + sección.
+  const insertarAula = async (grado, seccion, nivel) =>
+    sinError(
+      await supabase
+        .from("aulas")
+        .insert({ grado, seccion: seccion || null, nivel, anio_escolar_id: anioSel.id })
+    );
+
   function crearAula(event) {
     event.preventDefault();
-    if (!nueva.nombre.trim() || !anioSel) return;
+    if (!anioSel) return;
+    const delGrado = aulas.filter((a) => a.grado === nueva.grado);
+    if (!nueva.seccion && delGrado.length) {
+      setError(`${nueva.grado} ya tiene secciones. Usa "Agregar sección" en ese grado.`);
+      return;
+    }
+    if (nueva.seccion && delGrado.some((a) => !a.seccion)) {
+      setError(`${nueva.grado} está como sección única. Usa "Agregar sección" en ese grado para dividirlo.`);
+      return;
+    }
+    ejecutar(() => insertarAula(nueva.grado, nueva.seccion, nueva.nivel));
+  }
+
+  function cambiarNivel(nivel) {
+    setNueva((n) => ({ ...n, nivel, grado: GRADOS[nivel][0] }));
+  }
+
+  // Agrega la siguiente sección a un grado. Si el grado era de sección
+  // única, esa aula pasa a ser la "A" y la nueva la "B".
+  function agregarSeccion(grupo) {
+    const unica = grupo.aulas.find((a) => !a.seccion);
+    const usadas = grupo.aulas.map((a) => a.seccion).filter(Boolean);
+    if (unica) usadas.push("A");
+    const letra = siguienteSeccion(usadas);
+    if (!letra) {
+      setError("Este grado ya tiene el máximo de secciones.");
+      return;
+    }
+    if (unica && !confirm(`${grupo.grado} pasará a ser ${grupo.grado} A y se creará ${grupo.grado} ${letra}. ¿Continuar?`)) {
+      return;
+    }
     ejecutar(async () => {
-      sinError(
-        await supabase
-          .from("aulas")
-          .insert({ nombre: nueva.nombre.trim(), nivel: nueva.nivel, anio_escolar_id: anioSel.id })
-      );
-      setNueva((n) => ({ ...n, nombre: "" }));
+      if (unica) sinError(await supabase.from("aulas").update({ seccion: "A" }).eq("id", unica.id));
+      await insertarAula(grupo.grado, letra, grupo.nivel);
     });
   }
 
@@ -105,7 +145,7 @@ export default function AulasManager({ anios, anioSel, aulas }) {
     });
   }
 
-  // Año anterior con aulas, para copiarlas al abrir un año nuevo.
+  // Año anterior, para copiar sus grados y secciones al abrir un año nuevo.
   const anioAnterior = anios
     .filter((a) => anioSel && a.anio < anioSel.anio)
     .sort((a, b) => b.anio - a.anio)[0];
@@ -114,7 +154,7 @@ export default function AulasManager({ anios, anioSel, aulas }) {
     ejecutar(async () => {
       const { data: previas, error: err } = await supabase
         .from("aulas")
-        .select("nombre, nivel")
+        .select("grado, seccion, nivel")
         .eq("anio_escolar_id", anioAnterior.id);
       if (err) throw err;
       if (!previas?.length) throw new Error(`El año ${anioAnterior.anio} no tiene aulas.`);
@@ -125,6 +165,20 @@ export default function AulasManager({ anios, anioSel, aulas }) {
       );
     });
   }
+
+  // Grupos por nivel → grado → secciones.
+  const grupos = Object.values(
+    aulas.reduce((acc, aula) => {
+      acc[aula.grado] ??= { grado: aula.grado, nivel: aula.nivel, aulas: [] };
+      acc[aula.grado].aulas.push(aula);
+      return acc;
+    }, {})
+  )
+    .map((g) => ({
+      ...g,
+      aulas: g.aulas.sort((a, b) => (a.seccion ?? "").localeCompare(b.seccion ?? "")),
+    }))
+    .sort((a, b) => ordenGrado(a.grado) - ordenGrado(b.grado) || a.grado.localeCompare(b.grado));
 
   return (
     <div className="space-y-6">
@@ -180,46 +234,69 @@ export default function AulasManager({ anios, anioSel, aulas }) {
         </form>
       </div>
 
-      {/* NUEVA AULA */}
+      {/* NUEVO GRADO / SECCIÓN */}
       {anioSel && (
-        <form
-          onSubmit={crearAula}
-          className="grid gap-3 rounded-xl bg-white p-5 shadow-sm sm:grid-cols-[1fr_auto_auto] sm:items-end"
-        >
-          <Campo label={`Nueva aula ${anioSel.anio}`}>
-            <input
-              type="text"
-              value={nueva.nombre}
-              onChange={(e) => setNueva((n) => ({ ...n, nombre: e.target.value }))}
-              placeholder="Ej. 3° Primaria A"
-              className={inputClass}
-            />
-          </Campo>
-          <Campo label="Nivel">
-            <select
-              value={nueva.nivel}
-              onChange={(e) => setNueva((n) => ({ ...n, nivel: e.target.value }))}
-              className={inputClass}
+        <form onSubmit={crearAula} className="rounded-xl bg-white p-5 shadow-sm">
+          <p className="font-display text-lg font-semibold text-huellitas-primary">
+            Agregar grado o sección {anioSel.anio}
+          </p>
+          <p className="mt-1 text-sm text-stone-500">
+            Cada sección es un aula: 3° Primaria A, 3° Primaria B, 3° Primaria C… Elige “Sección
+            única” si el grado no se divide.
+          </p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
+            <Campo label="Nivel">
+              <select value={nueva.nivel} onChange={(e) => cambiarNivel(e.target.value)} className={inputClass}>
+                {Object.entries(NIVELES).map(([id, label]) => (
+                  <option key={id} value={id}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </Campo>
+            <Campo label="Grado">
+              <select
+                value={nueva.grado}
+                onChange={(e) => setNueva((n) => ({ ...n, grado: e.target.value }))}
+                className={inputClass}
+              >
+                {GRADOS[nueva.nivel].map((g) => (
+                  <option key={g} value={g}>
+                    {g}
+                  </option>
+                ))}
+              </select>
+            </Campo>
+            <Campo label="Sección">
+              <select
+                value={nueva.seccion}
+                onChange={(e) => setNueva((n) => ({ ...n, seccion: e.target.value }))}
+                className={inputClass}
+              >
+                {SECCIONES.map((s) => (
+                  <option key={s} value={s}>
+                    Sección {s}
+                  </option>
+                ))}
+                <option value={SIN_SECCION}>Sección única</option>
+              </select>
+            </Campo>
+            <button
+              type="submit"
+              disabled={ocupado}
+              className="flex items-center justify-center gap-2 rounded-lg bg-huellitas-primary px-4 py-2 text-sm font-medium text-white hover:bg-huellitas-primary-dark disabled:opacity-50"
             >
-              <option value="inicial">Inicial</option>
-              <option value="primaria">Primaria</option>
-            </select>
-          </Campo>
-          <button
-            type="submit"
-            disabled={ocupado || !nueva.nombre.trim()}
-            className="flex items-center justify-center gap-2 rounded-lg bg-huellitas-primary px-4 py-2 text-sm font-medium text-white hover:bg-huellitas-primary-dark disabled:opacity-50"
-          >
-            <Plus className="h-4 w-4" strokeWidth={2} />
-            Crear aula
-          </button>
+              <Plus className="h-4 w-4" strokeWidth={2} />
+              Crear {nueva.grado} {nueva.seccion}
+            </button>
+          </div>
         </form>
       )}
 
       {error && <p className="rounded-lg bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
 
-      {/* CAJAS */}
-      {aulas.length === 0 ? (
+      {/* GRADOS → SECCIONES */}
+      {grupos.length === 0 ? (
         <div className="rounded-xl bg-white p-8 text-center shadow-sm">
           <p className="text-sm text-stone-500">Este año todavía no tiene aulas.</p>
           {anioAnterior && (
@@ -230,21 +307,51 @@ export default function AulasManager({ anios, anioSel, aulas }) {
               className="mx-auto mt-3 flex items-center gap-2 rounded-lg border border-huellitas-primary px-4 py-2 text-sm font-medium text-huellitas-primary hover:bg-huellitas-primary-light disabled:opacity-50"
             >
               <Copy className="h-4 w-4" strokeWidth={2} />
-              Copiar las aulas de {anioAnterior.anio}
+              Copiar grados y secciones de {anioAnterior.anio}
             </button>
           )}
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
-          {aulas.map((aula) => (
-            <AulaCaja
-              key={aula.id}
-              aula={aula}
-              supabase={supabase}
-              ocupado={ocupado}
-              ejecutar={ejecutar}
-              sinError={sinError}
-            />
+        <div className="space-y-4">
+          {grupos.map((grupo) => (
+            <section key={grupo.grado} className="rounded-xl bg-white p-4 shadow-sm md:p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="font-display text-xl font-semibold text-huellitas-ink">{grupo.grado}</h2>
+                  <p className="text-xs text-stone-500">
+                    {NIVELES[grupo.nivel]} ·{" "}
+                    {grupo.aulas.some((a) => a.seccion)
+                      ? cantidad(grupo.aulas.length, "sección", "secciones")
+                      : "Sección única"}{" "}
+                    · {cantidad(grupo.aulas.reduce((s, a) => s + a.estudiantes.length, 0), "estudiante")}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => agregarSeccion(grupo)}
+                  disabled={ocupado}
+                  className="flex items-center gap-1 rounded-lg border border-dashed border-huellitas-primary px-3 py-1.5 text-sm font-medium text-huellitas-primary hover:bg-huellitas-primary-light disabled:opacity-50"
+                >
+                  <Plus className="h-4 w-4" strokeWidth={2} />
+                  Agregar sección
+                </button>
+              </div>
+
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                {grupo.aulas.map((aula) => (
+                  <AulaCaja
+                    key={aula.id}
+                    aula={aula}
+                    letrasUsadas={grupo.aulas.map((a) => a.seccion).filter(Boolean)}
+                    unicaEnGrado={grupo.aulas.length === 1}
+                    supabase={supabase}
+                    ocupado={ocupado}
+                    ejecutar={ejecutar}
+                    sinError={sinError}
+                  />
+                ))}
+              </div>
+            </section>
           ))}
         </div>
       )}
@@ -252,16 +359,17 @@ export default function AulasManager({ anios, anioSel, aulas }) {
   );
 }
 
-function AulaCaja({ aula, supabase, ocupado, ejecutar, sinError }) {
+function AulaCaja({ aula, letrasUsadas, unicaEnGrado, supabase, ocupado, ejecutar, sinError }) {
   const [abierta, setAbierta] = useState(false);
   const [editando, setEditando] = useState(false);
-  const [nombre, setNombre] = useState(aula.nombre);
+  const [seccion, setSeccion] = useState(aula.seccion ?? SIN_SECCION);
 
-  function renombrar(event) {
+  const opcionesSeccion = SECCIONES.filter((s) => s === aula.seccion || !letrasUsadas.includes(s));
+
+  function cambiarSeccion(event) {
     event.preventDefault();
-    if (!nombre.trim()) return;
     ejecutar(async () => {
-      sinError(await supabase.from("aulas").update({ nombre: nombre.trim() }).eq("id", aula.id));
+      sinError(await supabase.from("aulas").update({ seccion: seccion || null }).eq("id", aula.id));
       setEditando(false);
     });
   }
@@ -287,63 +395,94 @@ function AulaCaja({ aula, supabase, ocupado, ejecutar, sinError }) {
   }
 
   return (
-    <div className="rounded-xl border border-stone-200 bg-white shadow-sm">
-      <div className="flex items-start justify-between gap-3 p-4">
-        {editando ? (
-          <form onSubmit={renombrar} className="flex flex-1 gap-2">
-            <input value={nombre} onChange={(e) => setNombre(e.target.value)} className={inputClass} />
-            <button type="submit" className="rounded-lg bg-huellitas-primary px-3 text-sm text-white">
-              Guardar
-            </button>
-          </form>
-        ) : (
-          <button type="button" onClick={() => setAbierta((v) => !v)} className="min-w-0 flex-1 text-left">
-            <p className="truncate font-display text-lg font-semibold text-huellitas-primary">
-              {aula.nombre}
-            </p>
-            <p className="mt-1 flex flex-wrap gap-3 text-xs text-stone-500">
-              <span className="rounded-full bg-huellitas-primary-light px-2 py-0.5 text-huellitas-primary">
-                {NIVELES[aula.nivel]}
-              </span>
+    <div
+      className={`rounded-xl border transition-colors ${
+        abierta ? "border-huellitas-primary bg-huellitas-primary-light/30" : "border-stone-200 bg-white"
+      }`}
+    >
+      <div className="flex items-center gap-3 p-3">
+        <button
+          type="button"
+          onClick={() => setAbierta((v) => !v)}
+          aria-expanded={abierta}
+          className="flex min-w-0 flex-1 items-center gap-3 text-left"
+        >
+          <span
+            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg font-display font-semibold ${
+              aula.seccion
+                ? "bg-huellitas-primary text-2xl text-white"
+                : "bg-huellitas-primary-light text-xs text-huellitas-primary"
+            }`}
+          >
+            {aula.seccion ?? "Única"}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-semibold text-huellitas-ink">
+              {aula.seccion ? `Sección ${aula.seccion}` : "Sección única"}
+            </span>
+            <span className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-stone-500">
               <span className="flex items-center gap-1">
                 <Users className="h-3.5 w-3.5" strokeWidth={2} />
-                {aula.estudiantes.length} estudiantes
+                {cantidad(aula.estudiantes.length, "estudiante")}
               </span>
               <span className="flex items-center gap-1">
                 <GraduationCap className="h-3.5 w-3.5" strokeWidth={2} />
-                {aula.docentes.length} docentes
+                {cantidad(aula.docentes.length, "docente")}
               </span>
               <span className={aula.listaUtilesUrl ? "text-emerald-600" : "text-stone-400"}>
                 {aula.listaUtilesUrl ? "Lista de útiles ✓" : "Sin lista de útiles"}
               </span>
-            </p>
-          </button>
-        )}
-
-        <div className="flex shrink-0 gap-1">
-          <button
-            type="button"
-            onClick={() => setEditando((v) => !v)}
-            aria-label="Renombrar aula"
-            className="rounded-lg p-1.5 text-stone-400 hover:bg-stone-100 hover:text-huellitas-primary"
-          >
-            <Pencil className="h-4 w-4" strokeWidth={2} />
-          </button>
-          {aula.totalMatriculas === 0 && (
-            <button
-              type="button"
-              onClick={eliminar}
-              aria-label="Eliminar aula"
-              className="rounded-lg p-1.5 text-stone-400 hover:bg-stone-100 hover:text-rose-600"
-            >
-              <Trash2 className="h-4 w-4" strokeWidth={2} />
-            </button>
-          )}
-        </div>
+            </span>
+          </span>
+          <ChevronDown
+            className={`h-5 w-5 shrink-0 text-huellitas-primary transition-transform ${abierta ? "rotate-180" : ""}`}
+            strokeWidth={2}
+          />
+        </button>
       </div>
 
       {abierta && (
-        <div className="space-y-4 border-t border-stone-100 p-4 text-sm">
+        <div className="space-y-4 border-t border-stone-200 p-4 text-sm">
+          <div className="flex flex-wrap items-center gap-2">
+            {editando ? (
+              <form onSubmit={cambiarSeccion} className="flex flex-wrap items-center gap-2">
+                <select value={seccion} onChange={(e) => setSeccion(e.target.value)} className={`${inputClass} w-40`}>
+                  {opcionesSeccion.map((s) => (
+                    <option key={s} value={s}>
+                      Sección {s}
+                    </option>
+                  ))}
+                  {unicaEnGrado && <option value={SIN_SECCION}>Sección única</option>}
+                </select>
+                <button type="submit" disabled={ocupado} className="rounded-lg bg-huellitas-primary px-3 py-2 text-white disabled:opacity-50">
+                  Guardar
+                </button>
+                <button type="button" onClick={() => setEditando(false)} className="px-2 py-2 text-stone-500">
+                  Cancelar
+                </button>
+              </form>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setEditando(true)}
+                className="flex items-center gap-1 rounded-lg border border-stone-300 px-3 py-1.5 text-stone-600 hover:bg-white"
+              >
+                <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
+                Cambiar sección
+              </button>
+            )}
+            {aula.totalMatriculas === 0 && !editando && (
+              <button
+                type="button"
+                onClick={eliminar}
+                className="flex items-center gap-1 rounded-lg border border-stone-300 px-3 py-1.5 text-stone-600 hover:border-rose-300 hover:text-rose-600"
+              >
+                <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
+                Eliminar aula
+              </button>
+            )}
+          </div>
+
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-stone-400">Docentes</p>
             {aula.docentes.length === 0 ? (
@@ -373,7 +512,7 @@ function AulaCaja({ aula, supabase, ocupado, ejecutar, sinError }) {
                 className="flex items-center gap-1 text-xs font-medium text-huellitas-primary hover:underline"
               >
                 <UserPlus className="h-3.5 w-3.5" strokeWidth={2} />
-                Matricular aquí
+                Matricular en {aula.nombre}
               </Link>
             </div>
             {aula.estudiantes.length === 0 ? (
@@ -401,7 +540,7 @@ function AulaCaja({ aula, supabase, ocupado, ejecutar, sinError }) {
                     href={aula.listaUtilesUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1 rounded-lg border border-stone-300 px-3 py-1.5 text-stone-600 hover:bg-stone-50"
+                    className="flex items-center gap-1 rounded-lg border border-stone-300 px-3 py-1.5 text-stone-600 hover:bg-white"
                   >
                     <FileDown className="h-4 w-4" strokeWidth={2} />
                     Ver lista
@@ -431,7 +570,7 @@ function AulaCaja({ aula, supabase, ocupado, ejecutar, sinError }) {
               </label>
             </div>
             <p className="mt-1 text-xs text-stone-400">
-              PDF, Word o imagen. Los padres la descargan desde su portal.
+              PDF, Word o imagen. Los padres de esta sección la descargan desde su portal.
             </p>
           </div>
         </div>

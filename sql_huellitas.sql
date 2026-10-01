@@ -825,3 +825,28 @@ revoke execute on function public.docente_aulas_ids() from anon;
 revoke execute on function public.docente_puede_curso(uuid, text) from anon;
 revoke execute on function public.docente_puede_matricula(uuid) from anon;
 revoke execute on function public.docente_ve_estudiante(uuid) from anon;
+
+-- ============================================================
+-- GRADOS Y SECCIONES  (agregado)
+-- Cada aula es un grado + sección opcional (3° Primaria A, B...).
+-- El nombre visible se arma solo a partir de ambos.
+-- ============================================================
+alter table aulas add column if not exists grado text;
+alter table aulas add column if not exists seccion text;
+update aulas set grado = nombre where grado is null;
+alter table aulas alter column grado set not null;
+alter table aulas drop constraint if exists aulas_seccion_letra;
+alter table aulas add constraint aulas_seccion_letra check (seccion is null or seccion ~ '^[A-Z]$');
+alter table aulas drop constraint if exists aulas_grado_seccion_unica;
+alter table aulas add constraint aulas_grado_seccion_unica unique nulls not distinct (anio_escolar_id, grado, seccion);
+
+create or replace function public.aulas_nombre()
+returns trigger language plpgsql set search_path = '' as $$
+begin
+  new.nombre := new.grado || coalesce(' ' || new.seccion, '');
+  return new;
+end $$;
+
+drop trigger if exists aulas_nombre on aulas;
+create trigger aulas_nombre before insert or update of grado, seccion on aulas
+  for each row execute function public.aulas_nombre();
