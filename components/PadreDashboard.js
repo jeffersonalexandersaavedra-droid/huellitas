@@ -1,17 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  AlertTriangle,
-  Smartphone,
-  Building2,
-  X,
-  Lock,
-  FileText,
-  ClipboardList,
-} from "lucide-react";
+import { AlertTriangle, Smartphone, Building2, X, Lock } from "lucide-react";
 import EstadoBadge from "@/components/EstadoBadge";
 import StepperPago from "@/components/StepperPago";
 import NotaBadge from "@/components/NotaBadge";
@@ -19,7 +10,8 @@ import ModalPagoYape from "@/components/ModalPagoYape";
 import ModalPagoTransferencia from "@/components/ModalPagoTransferencia";
 import ModalCambiarPassword from "@/components/ModalCambiarPassword";
 import ModalPagoTotal from "@/components/ModalPagoTotal";
-import PerfilFoto from "@/components/PerfilFoto";
+import PerfilEstudiante from "@/components/PerfilEstudiante";
+import MisDocentes from "@/components/MisDocentes";
 import { MESES, formatFecha, aFecha } from "@/lib/fecha";
 import { bimestreActualPorMes, bimestrePagado } from "@/lib/bimestres";
 import { montoACobrar, siguienteCuotaPorPagar, formatSoles } from "@/lib/cuentas";
@@ -31,6 +23,7 @@ export default function PadreDashboard({
   notas,
   observaciones = [],
   apoderados = [],
+  docentes = [],
 }) {
   const router = useRouter();
   const anioActual = matricula.anios_escolares?.anio ?? new Date().getFullYear();
@@ -146,51 +139,14 @@ export default function PadreDashboard({
         </div>
       )}
 
-      {/* PERFIL DEL ESTUDIANTE */}
-      <PerfilFoto
-        estudianteId={estudiante.id}
-        nombre={estudianteNombre}
+      {/* PERFIL + DOCENTES */}
+      <PerfilEstudiante
+        estudiante={estudiante}
         aula={matricula.aulas?.nombre}
-        dni={estudiante.dni}
-        fotoUrl={estudiante.foto_url}
+        anio={anioActual}
+        listaUtilesUrl={matricula.aulas?.lista_utiles_url}
       />
-
-      {/* DOCUMENTOS DEL ESTUDIANTE */}
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Link
-          href="/padre/boleta"
-          className="flex items-center gap-3 rounded-xl bg-white p-4 shadow-sm transition-shadow hover:shadow"
-        >
-          <FileText className="h-6 w-6 shrink-0 text-huellitas-primary" strokeWidth={2} />
-          <span>
-            <span className="block text-sm font-semibold text-huellitas-ink">Boleta preventiva</span>
-            <span className="block text-xs text-stone-500">
-              Notas de los bimestres pagados, para descargar o imprimir.
-            </span>
-          </span>
-        </Link>
-        {matricula.aulas?.lista_utiles_url ? (
-          <a
-            href={matricula.aulas.lista_utiles_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-3 rounded-xl bg-white p-4 shadow-sm transition-shadow hover:shadow"
-          >
-            <ClipboardList className="h-6 w-6 shrink-0 text-huellitas-primary" strokeWidth={2} />
-            <span>
-              <span className="block text-sm font-semibold text-huellitas-ink">Lista de útiles</span>
-              <span className="block text-xs text-stone-500">
-                Descarga la lista de {matricula.aulas.nombre}.
-              </span>
-            </span>
-          </a>
-        ) : (
-          <div className="flex items-center gap-3 rounded-xl bg-white/60 p-4 text-stone-400 shadow-sm">
-            <ClipboardList className="h-6 w-6 shrink-0" strokeWidth={2} />
-            <span className="text-sm">La lista de útiles aún no está publicada.</span>
-          </div>
-        )}
-      </div>
+      <MisDocentes docentes={docentes} aula={matricula.aulas?.nombre} />
 
       {/* ESTADO DE CUENTA + PAGAR TODO */}
       {totalPagar > 0 && (

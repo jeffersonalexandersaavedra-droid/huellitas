@@ -2,7 +2,6 @@ import { createClient } from "@/lib/supabase/server";
 import { estudianteActual, matriculaVigente } from "@/lib/consultas";
 import { bimestresDesbloqueados } from "@/lib/bimestres";
 import PadreDashboard from "@/components/PadreDashboard";
-import MisDocentes from "@/components/MisDocentes";
 import AvisoVacio from "@/components/AvisoVacio";
 
 export default async function PadrePage() {
@@ -61,16 +60,14 @@ export default async function PadrePage() {
   const soloVisibles = (filas) => (filas ?? []).filter((f) => visibles.includes(f.bimestre));
 
   return (
-    <div className="space-y-6">
-      <PadreDashboard
-        estudiante={estudiante}
-        matricula={matricula}
-        cuotas={cuotas ?? []}
-        notas={soloVisibles(notas)}
-        observaciones={soloVisibles(observaciones)}
-        apoderados={(vinculos ?? []).map((v) => v.apoderados).filter(Boolean)}
-      />
-      <MisDocentes docentes={docentes ?? []} />
-    </div>
+    <PadreDashboard
+      estudiante={estudiante}
+      matricula={matricula}
+      cuotas={cuotas ?? []}
+      notas={soloVisibles(notas)}
+      observaciones={soloVisibles(observaciones)}
+      apoderados={(vinculos ?? []).map((v) => v.apoderados).filter(Boolean)}
+      docentes={docentes ?? []}
+    />
   );
 }

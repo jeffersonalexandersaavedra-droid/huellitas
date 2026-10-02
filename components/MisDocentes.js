@@ -1,19 +1,23 @@
 import TarjetaDocente from "@/components/TarjetaDocente";
 
-// Docentes del aula del estudiante con su perfil profesional.
-export default function MisDocentes({ docentes }) {
+// Docentes del aula del estudiante con su perfil profesional (tutor primero).
+export default function MisDocentes({ docentes, aula }) {
   if (docentes.length === 0) return null;
+  const ordenados = [...docentes].sort((a, b) => Number(b.es_tutor) - Number(a.es_tutor));
 
   return (
-    <div className="rounded-xl bg-white p-6 shadow-sm">
+    <section className="rounded-2xl bg-white p-5 shadow-sm sm:p-6">
       <h2 className="font-display text-xl font-semibold text-huellitas-primary">
-        Docentes de tu hijo(a)
+        Docentes de {aula ?? "tu hijo(a)"}
       </h2>
+      <p className="text-sm text-stone-500">
+        Conoce a los profesionales que acompañan a tu hijo(a) este año.
+      </p>
       <div className="mt-4 grid gap-3 md:grid-cols-2">
-        {docentes.map((d) => (
-          <TarjetaDocente key={d.docente_id} docente={d} />
+        {ordenados.map((d) => (
+          <TarjetaDocente key={d.docente_id ?? d.id} docente={d} />
         ))}
       </div>
-    </div>
+    </section>
   );
 }
