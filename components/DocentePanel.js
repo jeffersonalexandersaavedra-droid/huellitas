@@ -3,12 +3,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { Save, Download, BookOpen } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { NOTAS_LITERALES, BIMESTRES } from "@/lib/cursos";
+import { NOTAS_LITERALES, BIMESTRES, abreviarCurso } from "@/lib/cursos";
 import { registroDelAula, aulasDeAsignaciones } from "@/lib/consultas";
 import { descargarExcel } from "@/lib/excel";
 import { COLEGIO } from "@/lib/colegio";
 import { inputClass } from "@/lib/ui";
 import AvisoVacio from "@/components/AvisoVacio";
+
+// Escala literal + vacío; conserva una nota antigua que no esté en la escala.
+function opcionesNota(actual) {
+  const opciones = ["", ...NOTAS_LITERALES];
+  return actual && !opciones.includes(actual) ? [...opciones, actual] : opciones;
+}
 
 export default function DocentePanel({ docenteId, asignaciones }) {
   const supabase = createClient();
@@ -196,7 +202,7 @@ export default function DocentePanel({ docenteId, asignaciones }) {
   return (
     <div className="space-y-6">
       {/* Selectores */}
-      <div className="grid gap-3 rounded-xl bg-white p-4 shadow-sm sm:grid-cols-2">
+      <div className="grid grid-cols-2 gap-3 rounded-xl bg-white p-3 shadow-sm sm:p-4">
         <label className="block">
           <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-stone-400">
             Aula
@@ -220,7 +226,7 @@ export default function DocentePanel({ docenteId, asignaciones }) {
       </div>
 
       {/* Matriz */}
-      <div className="rounded-xl bg-white p-4 shadow-sm md:p-6">
+      <div className="rounded-xl bg-white p-3 shadow-sm sm:p-6">
         {cargando ? (
           <p className="py-8 text-center text-sm text-stone-400">Cargando...</p>
         ) : estudiantes.length === 0 ? (
@@ -233,57 +239,69 @@ export default function DocentePanel({ docenteId, asignaciones }) {
           </p>
         ) : (
           <>
-            <datalist id="notas-literales">
-              {NOTAS_LITERALES.map((n) => (
-                <option key={n} value={n} />
-              ))}
-            </datalist>
-
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-sm">
+            {/* En celular: columnas angostas con abreviaturas; la tabla se
+                desliza dentro de su tarjeta y el nombre queda fijo. */}
+            <div className="-mx-3 overflow-x-auto sm:mx-0">
+              <table className="w-full border-separate border-spacing-0 text-xs sm:text-sm">
                 <thead>
                   <tr>
-                    <th className="sticky left-0 z-10 min-w-[12rem] border-b border-stone-200 bg-white px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-stone-400">
+                    <th className="sticky left-0 z-10 w-28 border-b border-r border-stone-200 bg-white px-3 py-2 text-left font-medium uppercase tracking-wide text-stone-400 sm:w-auto sm:min-w-[11rem]">
                       Estudiante
                     </th>
                     {cursos.map((c) => (
                       <th
                         key={c}
-                        className="border-b border-stone-200 px-2 py-2 text-center text-xs font-medium text-huellitas-primary"
+                        title={c}
+                        className="border-b border-stone-200 px-1 py-2 text-center text-xs font-semibold leading-tight text-huellitas-primary sm:min-w-[4.25rem] sm:px-1.5 sm:font-medium"
                       >
-                        {c}
+                        <span className="sm:hidden">{abreviarCurso(c)}</span>
+                        <span className="hidden sm:inline">{c}</span>
                       </th>
                     ))}
-                    <th className="min-w-[14rem] border-b border-stone-200 px-2 py-2 text-left text-xs font-medium uppercase tracking-wide text-stone-400">
+                    <th className="min-w-[11rem] border-b border-stone-200 px-2 py-2 text-left font-medium uppercase tracking-wide text-stone-400">
                       Observación
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {estudiantes.map((e, i) => (
-                    <tr key={e.matriculaId} className="hover:bg-huellitas-cream/50">
-                      <td className="sticky left-0 z-10 border-b border-stone-100 bg-white px-3 py-2 text-huellitas-ink">
-                        <span className="text-stone-400">{i + 1}. </span>
-                        {e.nombre}
+                    <tr key={e.matriculaId} className="group">
+                      <td
+                        title={e.nombre}
+                        className="sticky left-0 z-10 max-w-[7rem] border-b border-r border-stone-100 bg-white px-3 py-1.5 text-huellitas-ink group-hover:bg-huellitas-cream sm:max-w-none"
+                      >
+                        <span className="block truncate">
+                          <span className="text-stone-400">{i + 1}. </span>
+                          <span className="sm:hidden">{e.corto}</span>
+                          <span className="hidden sm:inline">{e.nombre}</span>
+                        </span>
                       </td>
                       {cursos.map((c) => (
-                        <td key={c} className="border-b border-stone-100 px-1 py-1 text-center">
-                          <input
-                            type="text"
-                            list="notas-literales"
+                        <td key={c} className="border-b border-stone-100 px-0.5 py-1.5 text-center group-hover:bg-huellitas-cream sm:px-1">
+                          <select
+                            aria-label={`${c} de ${e.nombre}`}
                             value={notas[e.matriculaId]?.[c] ?? ""}
                             onChange={(ev) => setNota(e.matriculaId, c, ev.target.value)}
-                            className="w-14 rounded-md border border-stone-300 px-1 py-1 text-center text-sm font-semibold text-huellitas-primary outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20"
-                          />
+                            className={`h-8 w-10 appearance-none rounded-md border border-stone-300 bg-white px-0 text-center font-semibold outline-none [text-align-last:center] focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20 sm:h-9 sm:w-14 ${
+                              notas[e.matriculaId]?.[c] ? "text-huellitas-primary" : "text-stone-300"
+                            }`}
+                          >
+                            {opcionesNota(notas[e.matriculaId]?.[c]).map((n) => (
+                              <option key={n} value={n}>
+                                {n || "–"}
+                              </option>
+                            ))}
+                          </select>
                         </td>
                       ))}
-                      <td className="border-b border-stone-100 px-1 py-1">
+                      <td className="border-b border-stone-100 px-1 py-1.5 group-hover:bg-huellitas-cream">
                         <input
                           type="text"
+                          aria-label={`Observación de ${e.nombre}`}
                           value={observaciones[e.matriculaId] ?? ""}
                           onChange={(ev) => setObs(e.matriculaId, ev.target.value)}
                           placeholder="Observación del bimestre"
-                          className="w-full rounded-md border border-stone-200 bg-huellitas-cream px-2 py-1 text-sm outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20"
+                          className="h-8 w-full rounded-md border border-stone-200 bg-huellitas-cream px-2 outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20 sm:h-9"
                         />
                       </td>
                     </tr>
@@ -292,7 +310,11 @@ export default function DocentePanel({ docenteId, asignaciones }) {
               </table>
             </div>
 
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="mt-3 text-xs leading-relaxed text-stone-500 sm:hidden">
+              {cursos.map((c) => `${abreviarCurso(c)} = ${c}`).join(" · ")}
+            </p>
+
+            <div className="mt-4 flex flex-col gap-3 sm:mt-6 sm:flex-row sm:items-center sm:justify-between">
               <button
                 type="button"
                 onClick={descargarRegistro}

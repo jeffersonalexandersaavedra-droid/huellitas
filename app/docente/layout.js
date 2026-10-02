@@ -26,7 +26,7 @@ export default async function DocenteLayout({ children }) {
   return (
     <div className="flex min-h-dvh flex-col bg-huellitas-cream">
       <header className="bg-gradient-to-r from-huellitas-primary to-huellitas-primary-dark px-4 py-4 md:px-6">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
           <div className="flex shrink-0 items-center gap-2">
             <Image
               src="/logos/huellitas-escudo-sin-fondo.png"
@@ -58,7 +58,7 @@ export default async function DocenteLayout({ children }) {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 md:px-8">
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:px-8">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <Pestanas items={SECCIONES} />
           {driveUrl && (

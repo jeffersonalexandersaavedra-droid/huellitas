@@ -3,17 +3,16 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Smartphone, Building2, X, Lock } from "lucide-react";
-import EstadoBadge from "@/components/EstadoBadge";
 import StepperPago from "@/components/StepperPago";
-import NotaBadge from "@/components/NotaBadge";
 import ModalPagoYape from "@/components/ModalPagoYape";
 import ModalPagoTransferencia from "@/components/ModalPagoTransferencia";
 import ModalCambiarPassword from "@/components/ModalCambiarPassword";
 import ModalPagoTotal from "@/components/ModalPagoTotal";
 import PerfilEstudiante from "@/components/PerfilEstudiante";
 import MisDocentes from "@/components/MisDocentes";
+import ListaCuotas from "@/components/ListaCuotas";
+import NotasPadre from "@/components/NotasPadre";
 import { MESES, formatFecha, aFecha } from "@/lib/fecha";
-import { bimestreActualPorMes, bimestrePagado } from "@/lib/bimestres";
 import { montoACobrar, siguienteCuotaPorPagar, formatSoles } from "@/lib/cuentas";
 
 export default function PadreDashboard({
@@ -28,7 +27,6 @@ export default function PadreDashboard({
   const router = useRouter();
   const anioActual = matricula.anios_escolares?.anio ?? new Date().getFullYear();
   const mesActual = new Date().getMonth() + 1;
-  const bimestreActualReal = bimestreActualPorMes(mesActual);
 
   const cuotaDelMes = cuotas.find((c) => c.mes === mesActual) ?? null;
   const otrasCuotas = cuotas.filter((c) => c.id !== cuotaDelMes?.id);
@@ -37,7 +35,6 @@ export default function PadreDashboard({
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [modalPago, setModalPago] = useState(null);
   const [showModalTotal, setShowModalTotal] = useState(false);
-  const [bimestreActivo, setBimestreActivo] = useState(bimestreActualReal);
   const [showHistorial, setShowHistorial] = useState(false);
   const [toast, setToast] = useState("");
 
@@ -94,22 +91,6 @@ export default function PadreDashboard({
     router.refresh();
   }
 
-  const notasPorBimestre = new Map();
-  for (const n of notas) {
-    if (!notasPorBimestre.has(n.bimestre)) notasPorBimestre.set(n.bimestre, []);
-    notasPorBimestre.get(n.bimestre).push(n);
-  }
-  const notasBimestreActivo = notasPorBimestre.get(bimestreActivo) ?? [];
-
-  const observacionesPorBimestre = new Map();
-  for (const o of observaciones) {
-    if (!observacionesPorBimestre.has(o.bimestre))
-      observacionesPorBimestre.set(o.bimestre, []);
-    observacionesPorBimestre.get(o.bimestre).push(o);
-  }
-  const observacionesBimestreActivo =
-    observacionesPorBimestre.get(bimestreActivo) ?? [];
-
   const estudianteNombre = `${estudiante.nombres} ${estudiante.apellidos}`;
 
   return (
@@ -150,7 +131,7 @@ export default function PadreDashboard({
 
       {/* ESTADO DE CUENTA + PAGAR TODO */}
       {totalPagar > 0 && (
-        <div className="flex flex-col gap-4 rounded-xl bg-huellitas-primary p-6 text-white shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-4 rounded-2xl bg-huellitas-primary p-5 text-white shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6">
           <div>
             <p className="text-sm text-white/80">Total pendiente por pagar</p>
             <p className="mt-1 font-display text-3xl font-semibold">
@@ -164,15 +145,15 @@ export default function PadreDashboard({
           <button
             type="button"
             onClick={() => setShowModalTotal(true)}
-            className="shrink-0 rounded-lg bg-huellitas-accent px-6 py-3 text-sm font-semibold text-huellitas-primary transition-colors hover:bg-huellitas-accent-dark hover:text-white"
+            className="w-full shrink-0 rounded-lg bg-huellitas-accent px-6 py-3 text-sm font-semibold text-huellitas-primary transition-colors hover:bg-huellitas-accent-dark hover:text-white sm:w-auto"
           >
             Pagar todo lo pendiente
           </button>
         </div>
       )}
 
-      {/* BLOQUE 1: CUOTA DEL MES */}
-      <div className="rounded-xl bg-white p-6 shadow-sm">
+      {/* CUOTA DEL MES */}
+      <div className="rounded-2xl bg-white p-5 shadow-sm sm:p-6">
         {cuotaDelMes ? (
           <CuotaDelMes
             cuota={cuotaDelMes}
@@ -190,186 +171,32 @@ export default function PadreDashboard({
         )}
       </div>
 
-      {/* BLOQUE 2: PRÓXIMAS CUOTAS */}
-      <div className="rounded-xl bg-white p-6 shadow-sm">
+      {/* PRÓXIMAS CUOTAS */}
+      <section className="rounded-2xl bg-white p-5 shadow-sm sm:p-6">
         <h2 className="font-display text-xl font-semibold text-huellitas-primary">
-          Próximas cuotas y otros pagos
+          Pensiones del año
         </h2>
-
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-stone-100 text-xs uppercase tracking-wide text-stone-400">
-                <th className="py-2 pr-4 font-medium">Concepto</th>
-                <th className="py-2 pr-4 font-medium">Vencimiento</th>
-                <th className="py-2 pr-4 font-medium">Monto</th>
-                <th className="py-2 pr-4 font-medium">Estado</th>
-                <th className="py-2 font-medium" />
-              </tr>
-            </thead>
-            <tbody>
-              {otrasCuotas.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="py-4 text-center text-stone-400">
-                    No hay más cuotas pendientes por mostrar.
-                  </td>
-                </tr>
-              )}
-              {otrasCuotas.map((cuota) => {
-                const { monto, descuentoVigente } = montoACobrar(cuota);
-                return (
-                  <tr key={cuota.id} className="border-b border-stone-50">
-                    <td className="py-3 pr-4 text-huellitas-ink">
-                      {cuota.conceptos_cobro?.nombre ?? "Pensión"}
-                      {cuota.mes ? ` ${MESES[cuota.mes]} ${anioActual}` : ""}
-                    </td>
-                    <td className="py-3 pr-4 text-stone-500">
-                      {formatFecha(cuota.fecha_vencimiento)}
-                    </td>
-                    <td className="py-3 pr-4 text-huellitas-ink">
-                      {formatSoles(monto)}
-                      {descuentoVigente && (
-                        <span className="ml-1 text-xs text-huellitas-accent-dark">
-                          (con descuento)
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-3 pr-4">
-                      <EstadoBadge estado={cuota.estado} />
-                    </td>
-                    <td className="py-3 text-right">
-                      {(cuota.estado === "pendiente" || cuota.estado === "vencido") &&
-                        (cuota.id === cuotaPagableId ? (
-                          <div className="flex justify-end gap-3">
-                            <button
-                              type="button"
-                              onClick={() => abrirPago(cuota, "yape")}
-                              className="text-xs font-medium text-huellitas-primary hover:underline"
-                            >
-                              Yape
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => abrirPago(cuota, "transferencia")}
-                              className="text-xs font-medium text-huellitas-primary hover:underline"
-                            >
-                              Transferencia
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="flex items-center justify-end gap-1 text-xs text-stone-400">
-                            <Lock className="h-3 w-3" strokeWidth={2} />
-                            Paga primero el mes anterior
-                          </span>
-                        ))}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <p className="mt-1 text-sm text-stone-500">
+          Se pagan en orden: primero la más antigua que debes.
+        </p>
+        <div className="mt-2">
+          <ListaCuotas
+            cuotas={otrasCuotas}
+            anio={anioActual}
+            cuotaPagableId={cuotaPagableId}
+            onPagar={abrirPago}
+          />
         </div>
-
         <button
           type="button"
           onClick={() => setShowHistorial(true)}
-          className="mt-4 text-sm font-medium text-huellitas-accent-dark hover:underline"
+          className="mt-3 text-sm font-medium text-huellitas-accent-dark hover:underline"
         >
           Ver historial completo del año
         </button>
-      </div>
+      </section>
 
-      {/* BLOQUE 3: NOTAS */}
-      <div className="rounded-xl bg-white p-6 shadow-sm">
-        <h2 className="font-display text-xl font-semibold text-huellitas-primary">
-          Notas académicas {anioActual}
-        </h2>
-        <p className="mt-1 text-sm text-stone-500">
-          Notas del año en curso. Para consultar años anteriores acércate a
-          administración.
-        </p>
-
-        <div className="mt-4 flex gap-2 border-b border-stone-100">
-          {[1, 2, 3, 4].map((b) => {
-            const bloqueadoFuturo = b > bimestreActualReal;
-            const bloqueadoPago = !bimestrePagado(b, cuotas);
-            const disabled = bloqueadoFuturo || bloqueadoPago;
-            return (
-              <button
-                key={b}
-                type="button"
-                disabled={disabled}
-                onClick={() => setBimestreActivo(b)}
-                className={`flex items-center gap-1 border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
-                  disabled
-                    ? "cursor-not-allowed border-transparent text-stone-300"
-                    : bimestreActivo === b
-                      ? "border-huellitas-primary text-huellitas-primary"
-                      : "border-transparent text-stone-500 hover:text-huellitas-primary"
-                }`}
-              >
-                Bimestre {b}
-                {bloqueadoPago && !bloqueadoFuturo && (
-                  <Lock className="h-3 w-3" strokeWidth={2} />
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="mt-4">
-          {!bimestrePagado(bimestreActivo, cuotas) ? (
-            <div className="flex flex-col items-center gap-2 rounded-lg bg-huellitas-accent/10 py-8 text-center">
-              <Lock className="h-6 w-6 text-huellitas-accent-dark" strokeWidth={2} />
-              <p className="max-w-md text-sm text-huellitas-ink/80">
-                Para ver las notas del bimestre {bimestreActivo} debes estar al
-                día con las pensiones de ese periodo. Regulariza tus pagos para
-                desbloquearlas.
-              </p>
-            </div>
-          ) : notasBimestreActivo.length === 0 ? (
-            <p className="py-6 text-center text-sm text-stone-400">
-              Las notas del bimestre {bimestreActivo} aún no están disponibles.
-            </p>
-          ) : (
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-stone-100 text-xs uppercase tracking-wide text-stone-400">
-                  <th className="py-2 pr-4 font-medium">Curso</th>
-                  <th className="py-2 pr-4 font-medium">Nota</th>
-                  <th className="py-2 font-medium">Comentario docente</th>
-                </tr>
-              </thead>
-              <tbody>
-                {notasBimestreActivo.map((n) => (
-                  <tr key={n.id} className="border-b border-stone-50">
-                    <td className="py-3 pr-4 text-huellitas-ink">{n.curso}</td>
-                    <td className="py-3 pr-4">
-                      <NotaBadge nota={n.nota} />
-                    </td>
-                    <td className="py-3 text-stone-500">{n.comentario || "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-
-        {bimestrePagado(bimestreActivo, cuotas) && observacionesBimestreActivo.length > 0 && (
-          <div className="mt-4 rounded-lg bg-huellitas-primary-light/40 p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-huellitas-primary">
-              Observaciones del docente
-            </p>
-            <ul className="mt-2 space-y-1">
-              {observacionesBimestreActivo.map((o) => (
-                <li key={o.id} className="text-sm text-huellitas-ink/80">
-                  {o.texto}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
+      <NotasPadre anio={anioActual} notas={notas} observaciones={observaciones} cuotas={cuotas} />
 
       {/* MODALES */}
       {modalPago?.metodo === "yape" && (
@@ -413,7 +240,7 @@ export default function PadreDashboard({
 
       {showHistorial && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-huellitas-ink/50 p-4">
-          <div className="max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-lg">
+          <div className="max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-5 shadow-lg sm:p-6">
             <div className="flex items-center justify-between">
               <h3 className="font-display text-lg font-semibold text-huellitas-primary">
                 Historial de cuotas {anioActual}
@@ -427,44 +254,15 @@ export default function PadreDashboard({
               </button>
             </div>
 
-            <table className="mt-4 w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-stone-100 text-xs uppercase tracking-wide text-stone-400">
-                  <th className="py-2 pr-4 font-medium">Concepto</th>
-                  <th className="py-2 pr-4 font-medium">Vencimiento</th>
-                  <th className="py-2 pr-4 font-medium">Monto</th>
-                  <th className="py-2 font-medium">Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {cuotas.map((cuota) => {
-                  const { monto } = montoACobrar(cuota);
-                  return (
-                    <tr key={cuota.id} className="border-b border-stone-50">
-                      <td className="py-3 pr-4 text-huellitas-ink">
-                        {cuota.conceptos_cobro?.nombre ?? "Pensión"}
-                        {cuota.mes ? ` ${MESES[cuota.mes]}` : ""}
-                      </td>
-                      <td className="py-3 pr-4 text-stone-500">
-                        {formatFecha(cuota.fecha_vencimiento)}
-                      </td>
-                      <td className="py-3 pr-4 text-huellitas-ink">
-                        {formatSoles(monto)}
-                      </td>
-                      <td className="py-3">
-                        <EstadoBadge estado={cuota.estado} />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <div className="mt-2">
+              <ListaCuotas cuotas={cuotas} anio={anioActual} />
+            </div>
           </div>
         </div>
       )}
 
       {toast && (
-        <div className="fixed bottom-6 right-6 z-50 max-w-sm rounded-lg bg-huellitas-ink px-4 py-3 text-sm text-white shadow-lg">
+        <div className="fixed inset-x-4 bottom-4 z-50 rounded-lg bg-huellitas-ink px-4 py-3 text-sm text-white shadow-lg sm:inset-x-auto sm:right-6 sm:bottom-6 sm:max-w-sm">
           {toast}
         </div>
       )}
@@ -484,7 +282,7 @@ function CuotaDelMes({ cuota, mesActual, onPagar, bloqueada = false }) {
 
   return (
     <div>
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="font-display text-xl font-semibold text-huellitas-primary">
             Cuota del mes
@@ -494,21 +292,21 @@ function CuotaDelMes({ cuota, mesActual, onPagar, bloqueada = false }) {
           </p>
         </div>
 
-        <div className="text-right">
+        <div className="sm:text-right">
           {descuentoVigente ? (
             <div>
               <p className="text-sm text-stone-400 line-through">
                 {formatSoles(cuota.monto)}
               </p>
-              <p className="font-display text-3xl font-semibold text-huellitas-primary">
+              <p className="font-display text-2xl font-semibold text-huellitas-primary sm:text-3xl">
                 {formatSoles(monto)}
               </p>
-              <span className="mt-1 inline-flex items-center rounded-full bg-huellitas-accent px-2.5 py-0.5 text-xs font-semibold text-huellitas-ink">
+              <span className="mt-1 inline-flex items-center whitespace-nowrap rounded-full bg-huellitas-accent px-2.5 py-0.5 text-xs font-semibold text-huellitas-ink">
                 Descuento por pago puntual
               </span>
             </div>
           ) : (
-            <p className="font-display text-3xl font-semibold text-huellitas-primary">
+            <p className="font-display text-2xl font-semibold text-huellitas-primary sm:text-3xl">
               {formatSoles(monto)}
             </p>
           )}
