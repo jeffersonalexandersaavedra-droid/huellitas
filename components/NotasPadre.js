@@ -1,18 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { Lock } from "lucide-react";
 import NotaBadge from "@/components/NotaBadge";
 import { BIMESTRES } from "@/lib/cursos";
-import { bimestreActualPorMes, bimestrePagado } from "@/lib/bimestres";
+import { bimestreActualPorMes } from "@/lib/bimestres";
 
-// Notas del año por bimestre. Un bimestre se desbloquea cuando ya empezó y
-// sus pensiones están pagadas (el servidor ni siquiera envía las bloqueadas).
-export default function NotasPadre({ anio, notas, observaciones, cuotas }) {
+// Notas del año por bimestre (los bimestres que aún no empiezan se ven
+// deshabilitados). No dependen de los pagos: ver lib/bimestres.js.
+export default function NotasPadre({ anio, notas, observaciones }) {
   const bimestreActual = bimestreActualPorMes(new Date().getMonth() + 1);
   const [activo, setActivo] = useState(bimestreActual);
 
-  const pagado = bimestrePagado(activo, cuotas);
   const notasActivas = notas.filter((n) => n.bimestre === activo);
   const obsActivas = observaciones.filter((o) => o.bimestre === activo);
 
@@ -28,7 +26,6 @@ export default function NotasPadre({ anio, notas, observaciones, cuotas }) {
       <div className="mt-4 grid grid-cols-4 border-b border-stone-100">
         {BIMESTRES.map((b) => {
           const futuro = b > bimestreActual;
-          const bloqueado = !bimestrePagado(b, cuotas);
           return (
             <button
               key={b}
@@ -45,22 +42,13 @@ export default function NotasPadre({ anio, notas, observaciones, cuotas }) {
             >
               <span className="sm:hidden">Bim. {b}</span>
               <span className="hidden sm:inline">Bimestre {b}</span>
-              {bloqueado && !futuro && <Lock className="h-3 w-3 shrink-0" strokeWidth={2} />}
             </button>
           );
         })}
       </div>
 
       <div className="mt-4">
-        {!pagado ? (
-          <div className="flex flex-col items-center gap-2 rounded-lg bg-huellitas-accent/10 px-4 py-8 text-center">
-            <Lock className="h-6 w-6 text-huellitas-accent-dark" strokeWidth={2} />
-            <p className="max-w-md text-sm text-huellitas-ink/80">
-              Para ver las notas del bimestre {activo} debes estar al día con las pensiones de ese
-              periodo.
-            </p>
-          </div>
-        ) : notasActivas.length === 0 ? (
+        {notasActivas.length === 0 ? (
           <p className="py-6 text-center text-sm text-stone-400">
             Las notas del bimestre {activo} aún no están disponibles.
           </p>
@@ -79,7 +67,7 @@ export default function NotasPadre({ anio, notas, observaciones, cuotas }) {
         )}
       </div>
 
-      {pagado && obsActivas.length > 0 && (
+      {obsActivas.length > 0 && (
         <div className="mt-4 rounded-lg bg-huellitas-primary-light/40 p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-huellitas-primary">
             Observaciones del docente

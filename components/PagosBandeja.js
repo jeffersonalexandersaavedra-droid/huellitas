@@ -7,18 +7,13 @@ import { MESES, formatFecha } from "@/lib/fecha";
 import { METODOS_PAGO } from "@/lib/pagoInfo";
 import { formatSoles } from "@/lib/cuentas";
 
+// Vouchers enviados por los padres para validar. Cada pago trae
+// `voucherUrl`: enlace temporal al archivo (el depósito es privado).
 export default function PagosBandeja({ pagosIniciales, usuarioId }) {
   const supabase = createClient();
   const [pagos, setPagos] = useState(pagosIniciales);
   const [procesando, setProcesando] = useState(null);
   const [error, setError] = useState("");
-
-  function urlVoucher(voucher) {
-    if (!voucher) return null;
-    if (voucher.startsWith("http")) return voucher;
-    const { data } = supabase.storage.from("vouchers").getPublicUrl(voucher);
-    return data?.publicUrl ?? null;
-  }
 
   async function resolver(pago, aprobar) {
     setProcesando(pago.id);
@@ -83,7 +78,7 @@ export default function PagosBandeja({ pagosIniciales, usuarioId }) {
 
       {pagos.map((p) => {
         const est = p.matriculas?.estudiantes;
-        const voucher = urlVoucher(p.voucher_url);
+        const voucher = p.voucherUrl;
         return (
           <div
             key={p.id}

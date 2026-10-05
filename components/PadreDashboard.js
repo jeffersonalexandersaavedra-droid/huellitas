@@ -12,6 +12,7 @@ import PerfilEstudiante from "@/components/PerfilEstudiante";
 import MisDocentes from "@/components/MisDocentes";
 import ListaCuotas from "@/components/ListaCuotas";
 import NotasPadre from "@/components/NotasPadre";
+import MisComprobantes from "@/components/MisComprobantes";
 import { MESES, formatFecha, aFecha } from "@/lib/fecha";
 import { montoACobrar, siguienteCuotaPorPagar, formatSoles } from "@/lib/cuentas";
 
@@ -23,6 +24,7 @@ export default function PadreDashboard({
   observaciones = [],
   apoderados = [],
   docentes = [],
+  comprobantes = [],
 }) {
   const router = useRouter();
   const anioActual = matricula.anios_escolares?.anio ?? new Date().getFullYear();
@@ -196,7 +198,9 @@ export default function PadreDashboard({
         </button>
       </section>
 
-      <NotasPadre anio={anioActual} notas={notas} observaciones={observaciones} cuotas={cuotas} />
+      <MisComprobantes comprobantes={comprobantes} />
+
+      <NotasPadre anio={anioActual} notas={notas} observaciones={observaciones} />
 
       {/* MODALES */}
       {modalPago?.metodo === "yape" && (

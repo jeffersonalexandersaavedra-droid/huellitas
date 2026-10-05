@@ -2,7 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import PagosBandeja from "@/components/PagosBandeja";
 import RegistrarPagoCaja from "@/components/RegistrarPagoCaja";
 import Pestanas from "@/components/Pestanas";
-import { obtenerAnioActivo } from "@/lib/consultas";
+import { obtenerAnioActivo, estudiantesMatriculados } from "@/lib/consultas";
+import { nubefactConfigurado } from "@/lib/nubefact";
 
 export const metadata = { title: "Pagos" };
 
@@ -10,6 +11,10 @@ const PESTANAS = [
   { id: "vouchers", href: "/admin/pagos", label: "Vouchers por validar" },
   { id: "caja", href: "/admin/pagos?tab=caja", label: "Registrar pago en caja" },
 ];
+
+// Ruta del archivo en el depósito "vouchers" (los pagos antiguos guardaban
+// la URL pública completa).
+const rutaVoucher = (v) => (v?.startsWith("http") ? v.split("/vouchers/")[1] : v);
 
 export default async function PagosPage({ searchParams }) {
   const { tab } = await searchParams;
@@ -29,27 +34,30 @@ export default async function PagosPage({ searchParams }) {
       .eq("estado", "validando")
       .order("fecha_pago", { ascending: true });
 
-    contenido = <PagosBandeja pagosIniciales={pagos ?? []} usuarioId={user.id} />;
+    // Los vouchers son privados: se muestran con enlaces temporales (1 hora).
+    const rutas = (pagos ?? []).map((p) => rutaVoucher(p.voucher_url)).filter(Boolean);
+    const { data: firmados } = rutas.length
+      ? await supabase.storage.from("vouchers").createSignedUrls(rutas, 3600)
+      : { data: [] };
+    const enlace = Object.fromEntries((firmados ?? []).map((f) => [f.path, f.signedUrl]));
+
+    contenido = (
+      <PagosBandeja
+        pagosIniciales={(pagos ?? []).map((p) => ({ ...p, voucherUrl: enlace[rutaVoucher(p.voucher_url)] ?? null }))}
+        usuarioId={user.id}
+      />
+    );
   } else {
     const anioActivo = await obtenerAnioActivo(supabase);
-    const { data: matriculas } = await supabase
-      .from("matriculas")
-      .select("id, estudiante_id, aulas(nombre), estudiantes(dni, nombres, apellidos)")
-      .eq("anio_escolar_id", anioActivo?.id ?? "")
-      .eq("estado", "activa");
-
-    const estudiantes = (matriculas ?? [])
-      .filter((m) => m.estudiantes)
-      .map((m) => ({
-        matriculaId: m.id,
-        estudianteId: m.estudiante_id,
-        nombre: `${m.estudiantes.apellidos} ${m.estudiantes.nombres}`,
-        dni: m.estudiantes.dni,
-        aula: m.aulas?.nombre ?? "—",
-      }))
-      .sort((a, b) => a.nombre.localeCompare(b.nombre));
-
-    contenido = <RegistrarPagoCaja estudiantes={estudiantes} usuarioId={user.id} />;
+    contenido = (
+      <RegistrarPagoCaja
+        estudiantes={await estudiantesMatriculados(supabase, anioActivo?.id)}
+        usuarioId={user.id}
+        anio={anioActivo?.anio}
+        configurado={nubefactConfigurado()}
+        consultaHabilitada={Boolean(process.env.DECOLECTA_TOKEN)}
+      />
+    );
   }
 
   return (

@@ -72,9 +72,6 @@ export default function ModalPagoTotal({
       return;
     }
 
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from("vouchers").getPublicUrl(path);
 
     const pagador = apoderados[Number(pagadorIdx)];
     const { error: pagoError } = await supabase.from("pagos").insert({
@@ -85,7 +82,7 @@ export default function ModalPagoTotal({
       metodo,
       banco: metodo === "transferencia" ? cuentaBanco.label : null,
       numero_operacion: numeroOperacion,
-      voucher_url: publicUrl,
+      voucher_url: path,
       estado: "validando",
       pagado_por: pagador ? `${pagador.nombres} ${pagador.apellidos}` : null,
       pagado_por_parentesco: pagador?.parentesco ?? null,

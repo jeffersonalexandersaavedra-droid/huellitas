@@ -12,7 +12,6 @@ export default async function ReportesPage() {
   const supabase = await createClient();
 
   const anioActivo = await obtenerAnioActivo(supabase);
-
   const anioId = anioActivo?.id ?? "";
 
   const { data: matriculas } = await supabase
@@ -69,46 +68,67 @@ export default async function ReportesPage() {
     .filter((f) => f.conDeuda)
     .sort((a, b) => b.vencido - a.vencido);
 
-  const columnas = [
-    "Apellidos y Nombres",
-    "DNI",
-    "Aula",
-    "Cuotas pagadas",
-    "Cuotas pendientes",
-    "Deuda vencida (S/)",
-    "Estado",
-  ];
-  const filasExcel = filas
-    .slice()
-    .sort((a, b) => a.nombre.localeCompare(b.nombre))
-    .map((f) => [
-      f.nombre,
-      f.dni,
-      f.aula,
-      f.pagadas,
-      f.pendientes,
-      Number(f.vencido.toFixed(2)),
-      f.conDeuda ? "Con deuda" : "Al día",
-    ]);
+  const anio = anioActivo?.anio ?? "";
+  const hojaCobranza = {
+    nombre: "Cobranza",
+    titulo: "REPORTE DE COBRANZA",
+    subtitulos: [`Año escolar ${anio} · ${filas.length} estudiantes · ${morosos.length} con deuda vencida`],
+    columnas: [
+      { titulo: "Apellidos y nombres", ancho: 34 },
+      { titulo: "DNI", ancho: 12, tipo: "centro" },
+      { titulo: "Aula", ancho: 18 },
+      { titulo: "Pensiones pagadas", ancho: 11, tipo: "numero" },
+      { titulo: "Pensiones pendientes", ancho: 11, tipo: "numero" },
+      { titulo: "Deuda vencida", ancho: 14, tipo: "soles" },
+      { titulo: "Estado", ancho: 12, tipo: "centro" },
+    ],
+    filas: filas
+      .slice()
+      .sort((a, b) => a.nombre.localeCompare(b.nombre))
+      .map((f) => [
+        f.nombre,
+        f.dni,
+        f.aula,
+        f.pagadas,
+        f.pendientes,
+        Number(f.vencido.toFixed(2)),
+        f.conDeuda ? "Con deuda" : "Al día",
+      ]),
+  };
 
   // Pagos recibidos (caja + vouchers validados) para el reporte de ingresos.
-  const columnasPagos = ["Fecha", "Estudiante", "DNI", "Aula", "Concepto", "Método", "N.° operación", "Pagado por", "Monto (S/)"];
-  const filasPagos = (pagos ?? []).map((p) => {
-    const est = p.matriculas?.estudiantes;
-    return [
-      formatFecha(p.fecha_pago),
-      est ? `${est.apellidos} ${est.nombres}` : "—",
-      est?.dni ?? "—",
-      p.matriculas?.aulas?.nombre ?? "—",
-      p.cuotas_ids?.length > 1
-        ? `${p.cuotas_ids.length} pensiones`
-        : `Pensión ${MESES[p.cuotas?.mes] ?? ""}`.trim(),
-      METODOS_PAGO[p.metodo] ?? p.metodo,
-      p.numero_operacion ?? "",
-      p.pagado_por ?? "",
-      Number(p.monto),
-    ];
-  });
+  const hojaPagos = {
+    nombre: "Pagos",
+    titulo: "PAGOS RECIBIDOS",
+    subtitulos: [`Año escolar ${anio} · Total recaudado ${formatSoles(totalRecaudado)}`],
+    columnas: [
+      { titulo: "Fecha", ancho: 12, tipo: "centro" },
+      { titulo: "Estudiante", ancho: 32 },
+      { titulo: "DNI", ancho: 12, tipo: "centro" },
+      { titulo: "Aula", ancho: 16 },
+      { titulo: "Concepto", ancho: 20 },
+      { titulo: "Método", ancho: 14, tipo: "centro" },
+      { titulo: "N.° operación", ancho: 16, tipo: "centro" },
+      { titulo: "Pagado por", ancho: 26 },
+      { titulo: "Monto", ancho: 12, tipo: "soles" },
+    ],
+    filas: (pagos ?? []).map((p) => {
+      const est = p.matriculas?.estudiantes;
+      return [
+        formatFecha(p.fecha_pago),
+        est ? `${est.apellidos} ${est.nombres}` : "—",
+        est?.dni ?? "—",
+        p.matriculas?.aulas?.nombre ?? "—",
+        p.cuotas_ids?.length > 1
+          ? `${p.cuotas_ids.length} pensiones`
+          : `Pensión ${MESES[p.cuotas?.mes] ?? ""}`.trim(),
+        METODOS_PAGO[p.metodo] ?? p.metodo,
+        p.numero_operacion ?? "",
+        p.pagado_por ?? "",
+        Number(p.monto),
+      ];
+    }),
+  };
 
   const cards = [
     { label: "Esperado (año)", valor: formatSoles(totalEsperado) },
@@ -129,20 +149,8 @@ export default async function ReportesPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <ExportarExcelButton
-            archivo={`cobranza_${anioActivo?.anio ?? "anio"}`}
-            hoja="Cobranza"
-            columnas={columnas}
-            filas={filasExcel}
-            label="Exportar cobranza"
-          />
-          <ExportarExcelButton
-            archivo={`pagos_recibidos_${anioActivo?.anio ?? "anio"}`}
-            hoja="Pagos"
-            columnas={columnasPagos}
-            filas={filasPagos}
-            label="Exportar pagos recibidos"
-          />
+          <ExportarExcelButton archivo={`cobranza_${anio}`} hoja={hojaCobranza} label="Exportar cobranza" />
+          <ExportarExcelButton archivo={`pagos_recibidos_${anio}`} hoja={hojaPagos} label="Exportar pagos recibidos" />
         </div>
       </div>
 

@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import * as XLSX from "xlsx";
 import { Upload, Download, CheckCircle2, AlertTriangle, FileSpreadsheet } from "lucide-react";
 import { inputClass } from "@/lib/ui";
 import { DNI_REGEX } from "@/lib/validacion";
+import { leerExcel } from "@/lib/excel";
 
 // Busca el valor de una fila por varios posibles nombres de columna.
 function campo(fila, claves) {
@@ -31,10 +31,7 @@ export default function ImportarEstudiantes({ aulas }) {
     setResultado(null);
     setNombreArchivo(file.name);
     try {
-      const buf = await file.arrayBuffer();
-      const wb = XLSX.read(buf, { type: "array" });
-      const hoja = wb.Sheets[wb.SheetNames[0]];
-      const json = XLSX.utils.sheet_to_json(hoja, { defval: "" });
+      const json = await leerExcel(file);
 
       const parsed = json
         .map((row) => {
@@ -62,7 +59,7 @@ export default function ImportarEstudiantes({ aulas }) {
       }
       setFilas(parsed);
     } catch {
-      setError("No se pudo leer el archivo. Debe ser un Excel (.xlsx) o CSV.");
+      setError("No se pudo leer el archivo. Debe ser un Excel (.xlsx); si está en otro formato, ábrelo en Excel y guárdalo como .xlsx.");
       setFilas([]);
     }
   }
@@ -145,16 +142,16 @@ export default function ImportarEstudiantes({ aulas }) {
 
           <div>
             <span className="mb-1 block text-sm font-medium text-stone-700">
-              2. Sube el archivo Excel o CSV
+              2. Sube el archivo Excel (.xlsx)
             </span>
             <label className="flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed border-stone-300 p-6 text-center transition-colors hover:border-huellitas-accent">
               <FileSpreadsheet className="h-7 w-7 text-huellitas-accent" strokeWidth={2} />
               <span className="text-sm text-stone-600">
-                {nombreArchivo || "Haz clic para elegir tu archivo (.xlsx o .csv)"}
+                {nombreArchivo || "Haz clic para elegir tu archivo (.xlsx)"}
               </span>
               <input
                 type="file"
-                accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 className="hidden"
                 onChange={(e) => leerArchivo(e.target.files?.[0])}
               />

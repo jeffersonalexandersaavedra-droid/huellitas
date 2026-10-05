@@ -75,9 +75,6 @@ export default function ModalPagoYape({
       return;
     }
 
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from("vouchers").getPublicUrl(path);
 
     const { error: pagoError } = await supabase.from("pagos").insert({
       cuota_id: cuota.id,
@@ -85,7 +82,7 @@ export default function ModalPagoYape({
       monto: Number(montoPagado),
       metodo: "yape",
       numero_operacion: numeroOperacion,
-      voucher_url: publicUrl,
+      voucher_url: path,
       estado: "validando",
       pagado_por: pagador ? `${pagador.nombres} ${pagador.apellidos}` : null,
       pagado_por_parentesco: pagador?.parentesco ?? null,

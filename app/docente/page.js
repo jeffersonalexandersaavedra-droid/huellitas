@@ -23,7 +23,12 @@ export default async function DocenteNotasPage() {
       </p>
 
       <div className="mt-6">
-        <DocentePanel docenteId={docente.id} asignaciones={asignaciones} />
+        <DocentePanel
+          docenteId={docente.id}
+          docente={`${docente.nombres} ${docente.apellidos}`}
+          anio={anio?.anio}
+          asignaciones={asignaciones}
+        />
       </div>
     </div>
   );

@@ -107,48 +107,65 @@ export default function AsistenciaAdmin({ aulas, anio }) {
     return t;
   }, [registros]);
 
-  function exportar() {
-    const base = (e) => [e.aula, e.nombre, e.dni];
-    const totales = (e) => CLAVES_ASISTENCIA.map((k) => e.totales[k]);
-    const cortos = CLAVES_ASISTENCIA.map((k) => ESTADOS_ASISTENCIA[k].corto);
-    let filas;
-
-    if (periodo === "dia") {
-      filas = [
-        ["Aula", "Estudiante", "DNI", "Estado"],
-        ...estudiantes.map((e) => [...base(e), ESTADOS_ASISTENCIA[e.marcas[fecha]]?.label ?? ""]),
-      ];
-    } else if (periodo === "mes") {
-      const dias = Number(hasta.slice(-2));
-      const columnasDia = Array.from({ length: dias }, (_, i) => String(i + 1));
-      filas = [
-        ["Aula", "Estudiante", "DNI", ...columnasDia, ...cortos],
-        ...estudiantes.map((e) => [
-          ...base(e),
-          ...columnasDia.map((d) => {
-            const estado = e.marcas[`${mes}-${d.padStart(2, "0")}`];
-            return estado ? ESTADOS_ASISTENCIA[estado].corto : "";
-          }),
-          ...totales(e),
-        ]),
-      ];
-    } else {
-      filas = [
-        ["Aula", "Estudiante", "DNI", ...cortos, "% asistencia"],
-        ...estudiantes.map((e) => [...base(e), ...totales(e), porcentaje(e.totales)]),
-      ];
-    }
-
-    const etiqueta = periodo === "dia" ? fecha : periodo === "mes" ? mes : String(anio);
-    descargarExcel(`asistencia_${etiqueta}`, [{ nombre: `Asistencia ${etiqueta}`, filas }]);
-  }
-
   const titulo =
     periodo === "dia"
       ? formatFecha(fecha)
       : periodo === "mes"
         ? `${MESES[Number(mes.slice(5))]} ${mes.slice(0, 4)}`
         : `Año ${anio}`;
+
+  function exportar() {
+    const base = [
+      { titulo: "Aula", ancho: 16 },
+      { titulo: "Estudiante", ancho: 32 },
+      { titulo: "DNI", ancho: 11, tipo: "centro" },
+    ];
+    const columnasTotales = CLAVES_ASISTENCIA.map((k) => ({
+      titulo: ESTADOS_ASISTENCIA[k].label,
+      ancho: 7,
+      tipo: "numero",
+      vertical: true,
+    }));
+    const datos = (e) => [e.aula, e.nombre, e.dni];
+    const totales = (e) => CLAVES_ASISTENCIA.map((k) => e.totales[k]);
+    let columnas;
+    let filas;
+
+    if (periodo === "dia") {
+      columnas = [...base, { titulo: "Estado", ancho: 20, tipo: "centro" }];
+      filas = estudiantes.map((e) => [...datos(e), ESTADOS_ASISTENCIA[e.marcas[fecha]]?.label ?? ""]);
+    } else if (periodo === "mes") {
+      const dias = Array.from({ length: Number(hasta.slice(-2)) }, (_, i) => String(i + 1));
+      columnas = [
+        ...base,
+        ...dias.map((d) => ({ titulo: d, ancho: 3.6, tipo: "centro" })),
+        ...columnasTotales,
+      ];
+      filas = estudiantes.map((e) => [
+        ...datos(e),
+        ...dias.map((d) => ESTADOS_ASISTENCIA[e.marcas[`${mes}-${d.padStart(2, "0")}`]]?.corto ?? ""),
+        ...totales(e),
+      ]);
+    } else {
+      columnas = [...base, ...columnasTotales, { titulo: "% asistencia", ancho: 9, tipo: "porcentaje", vertical: true }];
+      filas = estudiantes.map((e) => [...datos(e), ...totales(e), porcentaje(e.totales)]);
+    }
+
+    const etiqueta = periodo === "dia" ? fecha : periodo === "mes" ? mes : String(anio);
+    const aula = aulas.find((a) => a.id === aulaId)?.nombre ?? "Todas las aulas";
+    descargarExcel(`asistencia_${etiqueta}`, [
+      {
+        nombre: `Asistencia ${etiqueta}`,
+        titulo: "REGISTRO DE ASISTENCIA",
+        subtitulos: [`${titulo} · ${aula}`],
+        columnas,
+        filas,
+        fijarColumnas: 3,
+        pie: [CLAVES_ASISTENCIA.map((k) => `${ESTADOS_ASISTENCIA[k].corto} = ${ESTADOS_ASISTENCIA[k].label}`).join(" · ")],
+      },
+    ]);
+  }
+
 
   return (
     <div className="space-y-4">

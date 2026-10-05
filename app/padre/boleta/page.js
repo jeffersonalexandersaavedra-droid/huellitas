@@ -1,10 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Lock } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { estudianteActual, matriculaVigente } from "@/lib/consultas";
-import { bimestresDesbloqueados } from "@/lib/bimestres";
-import { BIMESTRES } from "@/lib/cursos";
+import { bimestresIniciados } from "@/lib/bimestres";
+import { BIMESTRES, LEYENDA_ESCALA } from "@/lib/cursos";
 import { COLEGIO } from "@/lib/colegio";
 import { fechaLarga } from "@/lib/fecha";
 import { NIVELES } from "@/lib/grados";
@@ -15,9 +15,9 @@ export const metadata = { title: "Boleta preventiva" };
 
 const COLOR_NOTA = { AD: "text-emerald-700", A: "text-huellitas-primary", B: "text-amber-700", C: "text-rose-700" };
 
-// Boleta preventiva: notas del registro auxiliar de los bimestres pagados
-// (acumulativa: el 2.º bimestre incluye el 1.º, etc.). No reemplaza a la
-// boleta oficial del SIAGIE.
+// Boleta preventiva: notas del registro auxiliar de los bimestres ya
+// iniciados (acumulativa). No depende de los pagos (ver lib/bimestres.js) y
+// no reemplaza a la boleta oficial del SIAGIE.
 export default async function BoletaPreventivaPage() {
   const supabase = await createClient();
   const estudiante = await estudianteActual(supabase);
@@ -33,9 +33,8 @@ export default async function BoletaPreventivaPage() {
     return <AvisoVacio>No tienes una matrícula activa. Comunícate con administración.</AvisoVacio>;
   }
 
-  const [{ data: cuotas }, { data: notas }, { data: observaciones }, { data: catalogo }, { data: docentes }] =
+  const [{ data: notas }, { data: observaciones }, { data: catalogo }, { data: docentes }] =
     await Promise.all([
-      supabase.from("cuotas").select("mes, estado").eq("matricula_id", matricula.id),
       supabase.from("notas_curso").select("curso, bimestre, nota").eq("matricula_id", matricula.id),
       supabase
         .from("observaciones_estudiante")
@@ -51,7 +50,7 @@ export default async function BoletaPreventivaPage() {
       supabase.rpc("mis_docentes"),
     ]);
 
-  const visibles = bimestresDesbloqueados(cuotas ?? []);
+  const visibles = bimestresIniciados();
   const notasVisibles = (notas ?? []).filter((n) => visibles.includes(n.bimestre));
   const obsVisibles = (observaciones ?? []).filter((o) => visibles.includes(o.bimestre));
 
@@ -82,13 +81,13 @@ export default async function BoletaPreventivaPage() {
           <ArrowLeft className="h-4 w-4" strokeWidth={2} />
           Volver al portal
         </Link>
-        {visibles.length > 0 && <ImprimirButton />}
+        {notasVisibles.length > 0 && <ImprimirButton />}
       </div>
 
-      {visibles.length === 0 ? (
-        <AvisoVacio icono={Lock}>
-          Para ver la boleta preventiva debes tener pagadas las pensiones del primer bimestre
-          (marzo a mayo). Regulariza tus pagos para desbloquearla.
+      {notasVisibles.length === 0 ? (
+        <AvisoVacio>
+          Aún no hay notas registradas para este año. La boleta preventiva aparecerá cuando los
+          docentes publiquen las notas del primer bimestre.
         </AvisoVacio>
       ) : (
         <article className="rounded-xl bg-white p-6 shadow-sm print:rounded-none print:p-0 print:shadow-none md:p-10">
@@ -165,7 +164,7 @@ export default async function BoletaPreventivaPage() {
           )}
 
           <p className="mt-6 text-xs text-stone-500">
-            Escala: AD = logro destacado · A = logro esperado · B = en proceso · C = en inicio.
+            Escala: {LEYENDA_ESCALA}.
           </p>
           <p className="mt-3 rounded-lg border border-huellitas-accent/50 bg-huellitas-accent/10 p-3 text-xs text-huellitas-ink print:border-stone-300 print:bg-transparent">
             Documento referencial generado el {fechaLarga()} a partir del registro auxiliar del

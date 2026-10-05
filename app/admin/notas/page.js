@@ -22,7 +22,7 @@ export default async function NotasPage() {
       </p>
 
       <div className="mt-6">
-        <NotasAdminPanel aulas={aulas} />
+        <NotasAdminPanel aulas={aulas} anio={anioActivo?.anio} />
       </div>
     </div>
   );

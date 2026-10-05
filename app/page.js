@@ -18,6 +18,7 @@ import {
   FileText,
 } from "lucide-react";
 import SiteHeader from "@/components/SiteHeader";
+import EnlacesLegales from "@/components/EnlacesLegales";
 import { createClient } from "@/lib/supabase/server";
 import { mergeSitio, waLink } from "@/lib/sitioDefaults";
 
@@ -332,8 +333,9 @@ export default async function Home() {
           </div>
         </div>
 
-        <div className="mx-auto mt-12 max-w-6xl border-t border-white/10 pt-6 text-xs text-huellitas-cream/50">
-          © 2026 I.E.P. Huellitas · Tocache, San Martín · Todos los derechos reservados
+        <div className="mx-auto mt-12 flex max-w-6xl flex-col gap-3 border-t border-white/10 pt-6 text-xs text-huellitas-cream/50 sm:flex-row sm:items-center sm:justify-between">
+          <p>© 2026 I.E.P. Huellitas · Tocache, San Martín · Todos los derechos reservados</p>
+          <EnlacesLegales className="text-huellitas-cream/80" />
         </div>
       </footer>
     </div>

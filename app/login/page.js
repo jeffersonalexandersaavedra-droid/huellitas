@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import LoginForm from "@/components/LoginForm";
+import EnlacesLegales from "@/components/EnlacesLegales";
 
 export const metadata = { title: "Iniciar sesión" };
 
@@ -100,6 +101,7 @@ export default function LoginPage() {
               >
                 ← Volver a la página principal
               </Link>
+              <EnlacesLegales className="mt-3 justify-center text-stone-400" />
             </div>
           </div>
         </div>

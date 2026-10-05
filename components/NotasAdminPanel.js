@@ -6,8 +6,9 @@ import { BIMESTRES } from "@/lib/cursos";
 import { registroDelAula } from "@/lib/consultas";
 import ExportarExcelButton from "@/components/ExportarExcelButton";
 import { controlClass } from "@/lib/ui";
+import { hojaDeNotas } from "@/lib/excel";
 
-export default function NotasAdminPanel({ aulas }) {
+export default function NotasAdminPanel({ aulas, anio }) {
   const supabase = createClient();
   const [aulaId, setAulaId] = useState(aulas[0]?.id ?? "");
   const [bimestre, setBimestre] = useState(1);
@@ -44,16 +45,18 @@ export default function NotasAdminPanel({ aulas }) {
 
   const aulaNombre = aulas.find((a) => a.id === aulaId)?.nombre ?? "aula";
 
-  const excel = useMemo(() => {
-    const columnas = ["Apellidos y Nombres", "DNI", ...cursos, "Observaciones"];
-    const filasExcel = filas.map((f) => [
-      f.nombre,
-      f.dni,
-      ...cursos.map((c) => f.notas[c] ?? ""),
-      f.observacion,
-    ]);
-    return { columnas, filas: filasExcel };
-  }, [filas, cursos]);
+  const hoja = useMemo(
+    () =>
+      hojaDeNotas({
+        titulo: "REGISTRO DE NOTAS",
+        aula: aulaNombre,
+        bimestre,
+        anio,
+        cursos,
+        filas,
+      }),
+    [aulaNombre, bimestre, anio, cursos, filas]
+  );
 
   return (
     <div className="space-y-4">
@@ -77,12 +80,7 @@ export default function NotasAdminPanel({ aulas }) {
           ))}
         </select>
         <div className="ml-auto">
-          <ExportarExcelButton
-            archivo={`notas_${aulaNombre}_bim${bimestre}`}
-            hoja={`Bimestre ${bimestre}`}
-            columnas={excel.columnas}
-            filas={excel.filas}
-          />
+          <ExportarExcelButton archivo={`notas_${aulaNombre}_bim${bimestre}`} hoja={hoja} />
         </div>
       </div>
 

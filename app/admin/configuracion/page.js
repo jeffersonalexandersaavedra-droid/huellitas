@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import UsuariosManager from "@/components/UsuariosManager";
 import CursosManager from "@/components/CursosManager";
+import AuditoriaLista from "@/components/AuditoriaLista";
 
 export const metadata = { title: "Configuración" };
 
@@ -13,7 +14,7 @@ export default async function ConfiguracionPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: cursos }, { data: lista }] = await Promise.all([
+  const [{ data: cursos }, { data: lista }, { data: auditoria }] = await Promise.all([
     supabase
       .from("cursos")
       .select("id, nombre, nivel, activo")
@@ -21,7 +22,9 @@ export default async function ConfiguracionPage() {
       .order("nombre", { ascending: true }),
     // Listar cuentas de Auth requiere la service role.
     createAdminClient().auth.admin.listUsers({ perPage: 1000 }),
+    supabase.from("auditoria").select("*").order("creado_en", { ascending: false }).limit(200),
   ]);
+  const correoPorId = new Map((lista?.users ?? []).map((u) => [u.id, u.email]));
 
   const usuarios = (lista?.users ?? [])
     .filter((u) => ROLES_PERSONAL.includes(u.app_metadata?.role))
@@ -41,12 +44,18 @@ export default async function ConfiguracionPage() {
         Configuración
       </h1>
       <p className="mt-1 text-sm text-stone-500">
-        Cuentas del personal (administradores y secretarias) y catálogo de cursos.
+        Cuentas del personal (administradores y secretarias), catálogo de cursos y auditoría.
       </p>
 
       <div className="mt-6 space-y-6">
         <UsuariosManager usuarios={usuarios} />
         <CursosManager cursos={cursos ?? []} />
+        <AuditoriaLista
+          registros={(auditoria ?? []).map((r) => ({
+            ...r,
+            autor: r.usuario_id ? (correoPorId.get(r.usuario_id) ?? "Usuario eliminado") : "Sistema",
+          }))}
+        />
       </div>
     </div>
   );

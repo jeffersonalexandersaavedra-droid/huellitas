@@ -850,3 +850,245 @@ end $$;
 drop trigger if exists aulas_nombre on aulas;
 create trigger aulas_nombre before insert or update of grado, seccion on aulas
   for each row execute function public.aulas_nombre();
+
+-- ============================================================
+-- FACTURACIÓN: boletas, facturas y notas de crédito electrónicas
+-- (SUNAT vía proveedor OSE/PSE) y tickets de venta internos.
+-- Solo el servidor (service_role) escribe comprobantes; el personal
+-- los consulta y los padres ven los suyos.
+-- ============================================================
+
+-- Series y su último número usado (numeración correlativa).
+create table if not exists comprobante_series (
+  serie text primary key check (serie ~ '^[A-Z0-9]{4}$'),
+  tipo text not null check (tipo in ('boleta', 'factura', 'nota_credito', 'ticket')),
+  ultimo_numero integer not null default 0 check (ultimo_numero >= 0),
+  activa boolean not null default true,
+  created_at timestamptz default now(),
+  -- Reglas de SUNAT: boletas con B, facturas con F, notas de crédito con la
+  -- letra del comprobante que modifican; los tickets internos no usan B ni F.
+  check (
+    (tipo = 'boleta' and serie like 'B%')
+    or (tipo = 'factura' and serie like 'F%')
+    or (tipo = 'nota_credito' and (serie like 'B%' or serie like 'F%'))
+    or (tipo = 'ticket' and serie !~ '^[BF]')
+  )
+);
+insert into comprobante_series (serie, tipo) values
+  ('B001', 'boleta'), ('F001', 'factura'), ('BC01', 'nota_credito'), ('FC01', 'nota_credito'), ('T001', 'ticket')
+on conflict (serie) do nothing;
+
+create table if not exists comprobantes (
+  id uuid primary key default gen_random_uuid(),
+  tipo text not null check (tipo in ('boleta', 'factura', 'nota_credito', 'ticket')),
+  -- electronico: enviado a SUNAT por el proveedor; manual: emitido fuera
+  -- (SUNAT SOL / otro facturador) y registrado aquí; interno: ticket.
+  modo text not null check (modo in ('electronico', 'manual', 'interno')),
+  serie text not null check (serie ~ '^[A-Z0-9]{4}$'),
+  numero integer not null check (numero > 0),
+  fecha_emision date not null default (now() at time zone 'America/Lima')::date,
+  pago_id uuid references pagos(id) on delete set null,
+  matricula_id uuid references matriculas(id) on delete set null,
+  -- Catálogo 06 de SUNAT: 1 DNI, 4 carné de extranjería, 6 RUC, 7 pasaporte, - sin documento
+  cliente_tipo_doc text not null check (cliente_tipo_doc in ('1', '4', '6', '7', '-')),
+  cliente_num_doc text,
+  cliente_nombre text not null,
+  cliente_direccion text,
+  cliente_email text,
+  items jsonb not null check (jsonb_typeof(items) = 'array' and jsonb_array_length(items) > 0),
+  total numeric(10,2) not null check (total > 0),
+  metodo text,
+  observaciones text,
+  referencia_id uuid references comprobantes(id),
+  motivo text,
+  estado text not null default 'pendiente'
+    check (estado in ('pendiente', 'emitido', 'aceptado', 'rechazado', 'anulado')),
+  sunat_descripcion text,
+  enlace_pdf text,
+  enlace_xml text,
+  enlace_cdr text,
+  cadena_qr text,
+  hash text,
+  archivo_path text,
+  emitido_por uuid references auth.users(id) on delete set null,
+  anulado_en timestamptz,
+  created_at timestamptz default now(),
+  unique (serie, numero),
+  check (tipo <> 'factura' or cliente_tipo_doc = '6'),
+  check (tipo <> 'nota_credito' or referencia_id is not null)
+);
+create index if not exists idx_comprobantes_fecha on comprobantes(fecha_emision);
+create index if not exists idx_comprobantes_matricula on comprobantes(matricula_id);
+create index if not exists idx_comprobantes_referencia on comprobantes(referencia_id);
+-- Un pago tiene a lo más un comprobante vigente (evita facturar dos veces).
+create unique index if not exists comprobantes_pago_vigente on comprobantes(pago_id)
+  where pago_id is not null and tipo <> 'nota_credito' and estado not in ('rechazado', 'anulado');
+
+alter table comprobante_series enable row level security;
+drop policy if exists "personal_ve_series" on comprobante_series;
+create policy "personal_ve_series" on comprobante_series for select
+  using (public.rol_actual() in ('admin', 'secretaria'));
+drop policy if exists "admin_gestiona_series" on comprobante_series;
+create policy "admin_gestiona_series" on comprobante_series for all
+  using (public.rol_actual() = 'admin') with check (public.rol_actual() = 'admin');
+
+alter table comprobantes enable row level security;
+drop policy if exists "personal_ve_comprobantes" on comprobantes;
+create policy "personal_ve_comprobantes" on comprobantes for select
+  using (public.rol_actual() in ('admin', 'secretaria'));
+drop policy if exists "estudiante_ve_sus_comprobantes" on comprobantes;
+create policy "estudiante_ve_sus_comprobantes" on comprobantes for select
+  using (
+    estado <> 'rechazado'
+    and matricula_id in (
+      select m.id from matriculas m
+      join estudiantes e on e.id = m.estudiante_id
+      where e.user_id = auth.uid()
+    )
+  );
+
+-- Reserva el siguiente número de la serie activa del tipo (atómico: el
+-- UPDATE bloquea la fila). p_prefijo elige BC01/FC01 en notas de crédito.
+create or replace function public.reservar_numero(p_tipo text, p_prefijo text default null)
+returns table (serie text, numero integer)
+language sql security definer set search_path = public as $$
+  update comprobante_series s
+     set ultimo_numero = s.ultimo_numero + 1
+   where s.serie = (
+     select x.serie from comprobante_series x
+      where x.tipo = p_tipo and x.activa
+        and (p_prefijo is null or x.serie like p_prefijo || '%')
+      order by x.serie
+      limit 1)
+  returning s.serie, s.ultimo_numero
+$$;
+
+-- Devuelve el número si el proveedor rechazó crear el documento y nadie
+-- más usó la serie después (así no quedan saltos en la numeración).
+create or replace function public.liberar_numero(p_serie text, p_numero integer)
+returns void
+language sql security definer set search_path = public as $$
+  update comprobante_series
+     set ultimo_numero = ultimo_numero - 1
+   where serie = p_serie and ultimo_numero = p_numero
+$$;
+
+revoke execute on function public.reservar_numero(text, text) from public, anon, authenticated;
+revoke execute on function public.liberar_numero(text, integer) from public, anon, authenticated;
+grant execute on function public.reservar_numero(text, text) to service_role;
+grant execute on function public.liberar_numero(text, integer) to service_role;
+
+-- PDF de comprobantes registrados a mano (privado: se entrega con enlaces
+-- firmados desde el servidor).
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('comprobantes', 'comprobantes', false, 5242880, array['application/pdf', 'image/jpeg', 'image/png'])
+on conflict (id) do nothing;
+
+-- Los comprobantes viven en "comprobantes": columnas de pagos que nunca se
+-- usaron. (Opcional; ejecutar desde el SQL Editor cuando se quiera.)
+-- alter table pagos
+--   drop column if exists titular_comprobante_nombre,
+--   drop column if exists titular_comprobante_dni,
+--   drop column if exists numero_comprobante,
+--   drop column if exists serie_comprobante,
+--   drop column if exists tipo_comprobante;
+
+-- ============================================================
+-- PRIVACIDAD Y CUMPLIMIENTO
+-- ============================================================
+
+-- Vouchers privados: se ven con enlaces temporales firmados.
+update storage.buckets set public = false where id = 'vouchers';
+drop policy if exists "vouchers_secretaria_select" on storage.objects;
+create policy "vouchers_secretaria_select" on storage.objects for select to authenticated
+  using (bucket_id = 'vouchers' and public.rol_actual() = 'secretaria');
+
+-- Libro de Reclamaciones virtual (Código de Protección y Defensa del
+-- Consumidor, art. 150; D.S. 011-2011-PCM modificado por D.S. 101-2022-PCM).
+-- Las hojas se registran desde el servidor (service_role); el colegio
+-- responde en un plazo máximo de 15 días hábiles.
+create table if not exists reclamaciones (
+  id uuid primary key default gen_random_uuid(),
+  numero integer generated always as identity unique,
+  tipo text not null check (tipo in ('reclamo', 'queja')),
+  consumidor_nombre text not null,
+  consumidor_tipo_doc text not null check (consumidor_tipo_doc in ('DNI', 'CE', 'Pasaporte')),
+  consumidor_documento text not null,
+  consumidor_domicilio text not null,
+  consumidor_telefono text,
+  consumidor_email text not null,
+  menor_de_edad boolean not null default false,
+  apoderado_nombre text,
+  bien_tipo text not null check (bien_tipo in ('servicio', 'producto')),
+  bien_descripcion text not null,
+  monto numeric(10,2) check (monto is null or monto >= 0),
+  detalle text not null,
+  pedido text not null,
+  respuesta text,
+  fecha_respuesta timestamptz,
+  respondido_por uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  check (not menor_de_edad or apoderado_nombre is not null)
+);
+create index if not exists idx_reclamaciones_fecha on reclamaciones(created_at desc);
+alter table reclamaciones enable row level security;
+drop policy if exists "admin_gestiona_reclamaciones" on reclamaciones;
+create policy "admin_gestiona_reclamaciones" on reclamaciones for all
+  using (public.rol_actual() = 'admin') with check (public.rol_actual() = 'admin');
+drop policy if exists "secretaria_ve_reclamaciones" on reclamaciones;
+create policy "secretaria_ve_reclamaciones" on reclamaciones for select
+  using (public.rol_actual() = 'secretaria');
+
+-- Registro de auditoría (Ley 29733 y D.S. 016-2024-JUS): quién creó, cambió
+-- o borró pagos, notas, matrículas, comprobantes, etc. Solo lo lee el admin.
+create table if not exists auditoria (
+  id bigint generated always as identity primary key,
+  tabla text not null,
+  operacion text not null,
+  registro_id text,
+  usuario_id uuid,
+  rol text,
+  antes jsonb,
+  despues jsonb,
+  creado_en timestamptz not null default now()
+);
+create index if not exists idx_auditoria_tabla_fecha on auditoria(tabla, creado_en desc);
+create index if not exists idx_auditoria_fecha on auditoria(creado_en desc);
+alter table auditoria enable row level security;
+drop policy if exists "admin_ve_auditoria" on auditoria;
+create policy "admin_ve_auditoria" on auditoria for select
+  using (public.rol_actual() = 'admin');
+
+create or replace function public.registrar_auditoria()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if tg_op = 'UPDATE' and to_jsonb(new) = to_jsonb(old) then
+    return new;
+  end if;
+  insert into auditoria (tabla, operacion, registro_id, usuario_id, rol, antes, despues)
+  values (
+    tg_table_name,
+    tg_op,
+    coalesce(to_jsonb(new) ->> 'id', to_jsonb(old) ->> 'id', to_jsonb(new) ->> 'serie', to_jsonb(old) ->> 'serie'),
+    auth.uid(),
+    nullif(public.rol_actual(), ''),
+    case when tg_op in ('UPDATE', 'DELETE') then to_jsonb(old) end,
+    case when tg_op in ('INSERT', 'UPDATE') then to_jsonb(new) end
+  );
+  return coalesce(new, old);
+end $$;
+revoke execute on function public.registrar_auditoria() from public, anon, authenticated;
+
+do $$
+declare t text;
+begin
+  foreach t in array array[
+    'pagos', 'cuotas', 'notas_curso', 'observaciones_estudiante', 'matriculas', 'estudiantes',
+    'apoderados', 'estudiante_apoderado', 'docentes', 'asistencias', 'comprobantes',
+    'comprobante_series', 'reclamaciones'
+  ] loop
+    execute format(
+      'create or replace trigger auditoria_%1$s after insert or update or delete on public.%1$I
+         for each row execute function public.registrar_auditoria()', t);
+  end loop;
+end $$;

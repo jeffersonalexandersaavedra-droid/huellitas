@@ -5,8 +5,7 @@ import { Save, Download, BookOpen } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { NOTAS_LITERALES, BIMESTRES, abreviarCurso } from "@/lib/cursos";
 import { registroDelAula, aulasDeAsignaciones } from "@/lib/consultas";
-import { descargarExcel } from "@/lib/excel";
-import { COLEGIO } from "@/lib/colegio";
+import { descargarExcel, hojaDeNotas } from "@/lib/excel";
 import { inputClass } from "@/lib/ui";
 import AvisoVacio from "@/components/AvisoVacio";
 
@@ -16,7 +15,7 @@ function opcionesNota(actual) {
   return actual && !opciones.includes(actual) ? [...opciones, actual] : opciones;
 }
 
-export default function DocentePanel({ docenteId, asignaciones }) {
+export default function DocentePanel({ docenteId, docente, anio, asignaciones }) {
   const supabase = createClient();
   const aulas = useMemo(() => aulasDeAsignaciones(asignaciones), [asignaciones]);
 
@@ -171,23 +170,23 @@ export default function DocentePanel({ docenteId, asignaciones }) {
     }
   }
 
-  // Registro auxiliar en Excel, listo para transcribir al SIAGIE.
+  // Registro auxiliar en Excel, listo para imprimir o transcribir al SIAGIE.
   function descargarRegistro() {
-    const filas = [
-      [`${COLEGIO.nombre} — Registro auxiliar`],
-      [`Aula: ${aulaSel?.nombre ?? ""}`, `Bimestre ${bimestre}`],
-      [],
-      ["N°", "Apellidos y Nombres", "DNI", ...cursos, "Observación"],
-      ...estudiantes.map((e, i) => [
-        i + 1,
-        e.nombre,
-        e.dni,
-        ...cursos.map((c) => notas[e.matriculaId]?.[c] ?? ""),
-        observaciones[e.matriculaId] ?? "",
-      ]),
-    ];
-    descargarExcel(`registro_${aulaSel?.nombre ?? "aula"}_bim${bimestre}`, [
-      { nombre: `Bimestre ${bimestre}`, filas },
+    descargarExcel(`registro_auxiliar_${aulaSel?.nombre ?? "aula"}_bim${bimestre}`, [
+      hojaDeNotas({
+        titulo: "REGISTRO AUXILIAR DE EVALUACIÓN",
+        aula: aulaSel?.nombre ?? "",
+        bimestre,
+        anio,
+        docente,
+        cursos,
+        filas: estudiantes.map((e) => ({
+          nombre: e.nombre,
+          dni: e.dni,
+          notas: notas[e.matriculaId] ?? {},
+          observacion: observaciones[e.matriculaId],
+        })),
+      }),
     ]);
   }
 

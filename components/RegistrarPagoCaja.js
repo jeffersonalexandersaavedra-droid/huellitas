@@ -1,22 +1,25 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Search, Banknote, CheckCircle2 } from "lucide-react";
+import { useState } from "react";
+import { Banknote, CheckCircle2, Receipt } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { MESES, formatFecha } from "@/lib/fecha";
 import { montoACobrar, formatSoles } from "@/lib/cuentas";
 import { METODOS_PAGO } from "@/lib/pagoInfo";
+import { apoderadosDe } from "@/lib/consultas";
 import { inputClass } from "@/lib/ui";
 import Campo from "@/components/Campo";
 import EstadoBadge from "@/components/EstadoBadge";
+import BuscadorEstudiante from "@/components/BuscadorEstudiante";
+import { ModalComprobante, AvisoComprobante } from "@/components/FormularioComprobante";
 
 const METODOS_CAJA = ["efectivo", "yape", "plin", "transferencia", "deposito"];
 
 // Pago recibido en dirección/secretaría. Se cobran las pensiones en orden
-// (desde la más antigua) y queda registrado como pagado al instante.
-export default function RegistrarPagoCaja({ estudiantes, usuarioId }) {
+// (desde la más antigua), queda registrado como pagado al instante y se
+// ofrece emitir su comprobante a nombre de quien pagó.
+export default function RegistrarPagoCaja({ estudiantes, usuarioId, anio, configurado, consultaHabilitada }) {
   const supabase = createClient();
-  const [busqueda, setBusqueda] = useState("");
   const [seleccion, setSeleccion] = useState(null);
   const [cuotas, setCuotas] = useState([]);
   const [apoderados, setApoderados] = useState([]);
@@ -26,29 +29,21 @@ export default function RegistrarPagoCaja({ estudiantes, usuarioId }) {
   const [operacion, setOperacion] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState(null);
-
-  const coincidencias = useMemo(() => {
-    const q = busqueda.trim().toLowerCase();
-    if (q.length < 2) return [];
-    return estudiantes
-      .filter((e) => e.nombre.toLowerCase().includes(q) || e.dni.includes(q))
-      .slice(0, 8);
-  }, [busqueda, estudiantes]);
+  // Pago recién registrado, listo para emitir su comprobante.
+  const [porFacturar, setPorFacturar] = useState(null);
+  const [modalAbierto, setModalAbierto] = useState(false);
+  const [comprobante, setComprobante] = useState(null);
 
   async function cargar(estudiante) {
-    const [{ data: cuotasData }, { data: vinculos }] = await Promise.all([
+    const [{ data: cuotasData }, porEstudiante] = await Promise.all([
       supabase
         .from("cuotas")
-        .select("id, mes, monto, monto_con_descuento, fecha_vencimiento, estado")
+        .select("id, mes, monto, monto_con_descuento, fecha_vencimiento, estado, conceptos_cobro(nombre)")
         .eq("matricula_id", estudiante.matriculaId)
         .order("mes", { ascending: true }),
-      supabase
-        .from("estudiante_apoderado")
-        .select("es_principal, apoderados(nombres, apellidos, parentesco)")
-        .eq("estudiante_id", estudiante.estudianteId)
-        .order("es_principal", { ascending: false }),
+      apoderadosDe(supabase, [estudiante.estudianteId]),
     ]);
-    const lista = (vinculos ?? []).map((v) => v.apoderados).filter(Boolean);
+    const lista = porEstudiante.get(estudiante.estudianteId) ?? [];
     setCuotas(cuotasData ?? []);
     setApoderados(lista);
     setPagadoPor(lista[0] ? `${lista[0].nombres} ${lista[0].apellidos}` : "");
@@ -62,8 +57,9 @@ export default function RegistrarPagoCaja({ estudiantes, usuarioId }) {
 
   function elegir(estudiante) {
     setSeleccion(estudiante);
-    setBusqueda("");
     setMensaje(null);
+    setPorFacturar(null);
+    setComprobante(null);
     cargar(estudiante);
   }
 
@@ -77,20 +73,24 @@ export default function RegistrarPagoCaja({ estudiantes, usuarioId }) {
     const ids = aCobrar.map((c) => c.id);
     const apoderado = apoderados.find((a) => `${a.nombres} ${a.apellidos}` === pagadoPor);
 
-    const { error: pagoError } = await supabase.from("pagos").insert({
-      matricula_id: seleccion.matriculaId,
-      cuota_id: ids[0],
-      cuotas_ids: ids,
-      monto: total,
-      metodo,
-      numero_operacion: operacion.trim() || null,
-      estado: "pagado",
-      fecha_pago: ahora,
-      fecha_validacion: ahora,
-      validado_por: usuarioId,
-      pagado_por: pagadoPor.trim() || null,
-      pagado_por_parentesco: apoderado?.parentesco ?? null,
-    });
+    const { data: pago, error: pagoError } = await supabase
+      .from("pagos")
+      .insert({
+        matricula_id: seleccion.matriculaId,
+        cuota_id: ids[0],
+        cuotas_ids: ids,
+        monto: total,
+        metodo,
+        numero_operacion: operacion.trim() || null,
+        estado: "pagado",
+        fecha_pago: ahora,
+        fecha_validacion: ahora,
+        validado_por: usuarioId,
+        pagado_por: pagadoPor.trim() || null,
+        pagado_por_parentesco: apoderado?.parentesco ?? null,
+      })
+      .select("id, monto, metodo, fecha_pago, cuota_id, cuotas_ids, pagado_por")
+      .single();
 
     const { error: cuotasError } = pagoError
       ? { error: null }
@@ -105,6 +105,14 @@ export default function RegistrarPagoCaja({ estudiantes, usuarioId }) {
 
     const meses = aCobrar.map((c) => MESES[c.mes]).join(", ");
     setMensaje({ tipo: "ok", texto: `Pago de ${formatSoles(total)} registrado (${meses}).` });
+    setPorFacturar({
+      ...pago,
+      cuotas: aCobrar,
+      alumno: seleccion.nombre,
+      aula: seleccion.aula,
+      anio,
+    });
+    setModalAbierto(true);
     setOperacion("");
     cargar(seleccion);
   }
@@ -112,49 +120,33 @@ export default function RegistrarPagoCaja({ estudiantes, usuarioId }) {
   return (
     <div className="space-y-4">
       <div className="rounded-xl bg-white p-5 shadow-sm">
-        <Campo label="Buscar estudiante (nombre o DNI)">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" strokeWidth={2} />
-            <input
-              type="search"
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Ej. Saavedra o 73113177"
-              className={`${inputClass} pl-9`}
-            />
-          </div>
-        </Campo>
-
-        {coincidencias.length > 0 && (
-          <ul className="mt-2 divide-y divide-stone-100 rounded-lg border border-stone-200">
-            {coincidencias.map((e) => (
-              <li key={e.matriculaId}>
-                <button
-                  type="button"
-                  onClick={() => elegir(e)}
-                  className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-huellitas-cream"
-                >
-                  <span className="text-huellitas-ink">{e.nombre}</span>
-                  <span className="shrink-0 text-xs text-stone-500">
-                    {e.dni} · {e.aula}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
+        <BuscadorEstudiante estudiantes={estudiantes} onElegir={elegir} />
       </div>
 
       {mensaje && (
-        <p
-          className={`flex items-center gap-2 rounded-lg px-4 py-3 text-sm ${
+        <div
+          className={`flex flex-wrap items-center justify-between gap-2 rounded-lg px-4 py-3 text-sm ${
             mensaje.tipo === "ok" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
           }`}
         >
-          {mensaje.tipo === "ok" && <CheckCircle2 className="h-4 w-4" strokeWidth={2} />}
-          {mensaje.texto}
-        </p>
+          <p className="flex items-center gap-2">
+            {mensaje.tipo === "ok" && <CheckCircle2 className="h-4 w-4" strokeWidth={2} />}
+            {mensaje.texto}
+          </p>
+          {porFacturar && !comprobante && (
+            <button
+              type="button"
+              onClick={() => setModalAbierto(true)}
+              className="flex items-center gap-1 rounded-lg bg-huellitas-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-huellitas-primary-dark"
+            >
+              <Receipt className="h-4 w-4" strokeWidth={2} />
+              Emitir comprobante
+            </button>
+          )}
+        </div>
       )}
+
+      {comprobante && <AvisoComprobante resultado={comprobante} onCerrar={() => setComprobante(null)} />}
 
       {seleccion && (
         <form onSubmit={registrar} className="rounded-xl bg-white p-5 shadow-sm">
@@ -264,6 +256,23 @@ export default function RegistrarPagoCaja({ estudiantes, usuarioId }) {
             </>
           )}
         </form>
+      )}
+
+      {modalAbierto && porFacturar && (
+        <ModalComprobante
+          titulo="Comprobante del pago"
+          subtitulo={`${porFacturar.alumno} · ${formatSoles(porFacturar.monto)}`}
+          pago={porFacturar}
+          apoderados={apoderados}
+          configurado={configurado}
+          consultaHabilitada={consultaHabilitada}
+          onEmitido={(r) => {
+            setComprobante(r);
+            setPorFacturar(null);
+            setModalAbierto(false);
+          }}
+          onCerrar={() => setModalAbierto(false)}
+        />
       )}
     </div>
   );
