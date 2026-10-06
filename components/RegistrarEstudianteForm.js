@@ -14,7 +14,7 @@ import {
   FileDown,
 } from "lucide-react";
 import { inputClass } from "@/lib/ui";
-import { generarPassword } from "@/lib/validacion";
+import { PASSWORD_MIN, generarPassword } from "@/lib/validacion";
 import Campo from "@/components/Campo";
 
 function apoderadoVacio(esPrincipal) {
@@ -249,7 +249,7 @@ export default function RegistrarEstudianteForm({ aulas, docentes, aulaInicial =
                 <input
                   type={mostrarPassword ? "text" : "password"}
                   required
-                  minLength={6}
+                  minLength={PASSWORD_MIN}
                   value={estudiante.password}
                   onChange={(e) => setEstudiante((s) => ({ ...s, password: e.target.value }))}
                   className={`${inputClass} pr-10`}

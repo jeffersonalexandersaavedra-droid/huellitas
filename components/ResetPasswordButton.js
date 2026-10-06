@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { KeyRound, UserPlus, RefreshCw, Check, Copy, X } from "lucide-react";
-import { generarPassword, MENSAJE_PASSWORD, passwordValida } from "@/lib/validacion";
+import { PASSWORD_MIN, generarPassword, MENSAJE_PASSWORD, passwordValida } from "@/lib/validacion";
 
 // Botón para gestionar la contraseña de un estudiante o docente.
 // - tipo: "estudiante" | "docente"
@@ -131,7 +131,7 @@ export default function ResetPasswordButton({ tipo, id, tieneAcceso = true }) {
               type="text"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Mínimo 6 caracteres"
+              placeholder={`Mínimo ${PASSWORD_MIN} caracteres`}
               className="w-full rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20"
             />
             <button

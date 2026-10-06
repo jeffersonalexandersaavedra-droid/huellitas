@@ -1,36 +1,43 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# I.E.P. Huellitas — sistema de gestión escolar
 
-## Getting Started
+Portal de la I.E.P. Huellitas (Tocache, San Martín; Inicial y Primaria): página pública,
+panel de administración y secretaría, portal del docente y portal del padre.
 
-First, run the development server:
+- **Next.js 16** (App Router, `proxy.js`) + **React 19** + **Tailwind CSS 4**
+- **Supabase**: autenticación por rol (`app_metadata.role`: admin, secretaria, docente,
+  estudiante), Postgres con RLS y Storage
+- **ExcelJS** para los Excel, **docxtemplater** para el contrato
+
+## Puesta en marcha
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env.local   # y completa las claves (ver comentarios del archivo)
+npm run dev                  # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+`npm run lint` revisa el código y `npm run build` compila para producción (Vercel).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Dónde está cada cosa
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Carpeta | Contenido |
+| --- | --- |
+| `app/admin` | Panel de administración y secretaría (cada rol ve solo sus secciones, ver `lib/roles.js`) |
+| `app/docente` | Registro de notas por competencias, asistencia, incidencias y perfil |
+| `app/padre` | Pensiones y pagos, notas, boleta preventiva y comprobantes |
+| `app/api` | Rutas del servidor (cuentas, matrícula, contrato, facturación, reclamaciones) |
+| `components` | Componentes de la interfaz |
+| `lib` | Reglas y consultas compartidas (sin duplicar en las páginas) |
+| `sql_huellitas.sql` | Registro del esquema de la base de datos y sus cambios |
 
-## Learn More
+## Notas y SIAGIE
 
-To learn more about Next.js, take a look at the following resources:
+Las notas se registran por competencia del Currículo Nacional (nivel de logro AD, A, B o C
+y conclusión descriptiva), igual que el SIAGIE. Las competencias de cada área se editan en
+**Configuración › Cursos**.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Registro auxiliar (Excel)**: misma estructura del registro de notas del SIAGIE.
+- **Completar archivo del SIAGIE**: el docente elige el registro que descargó del SIAGIE y
+  recibe el mismo archivo con las notas guardadas en el portal, listo para subirlo.
+- **Boleta preventiva**: vista previa del Informe de progreso; el informe oficial con firma
+  y sello se solicita en la institución.

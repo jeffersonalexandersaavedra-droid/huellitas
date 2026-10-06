@@ -10,12 +10,12 @@ export default function AdminShell({ rol, nombre, children }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <div className="flex h-dvh">
+    <div className="flex h-dvh print:block print:h-auto">
       <Sidebar rol={rol} open={menuOpen} onClose={() => setMenuOpen(false)} />
 
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex flex-1 flex-col overflow-hidden print:overflow-visible">
         {/* Barra superior móvil (solo < md) */}
-        <div className="flex h-16 shrink-0 items-center gap-3 border-b border-stone-200 bg-white px-4 md:hidden">
+        <div className="flex h-16 shrink-0 items-center gap-3 border-b border-stone-200 bg-white px-4 md:hidden print:hidden">
           <button
             type="button"
             onClick={() => setMenuOpen(true)}
@@ -41,7 +41,7 @@ export default function AdminShell({ rol, nombre, children }) {
         {/* Header de escritorio (solo >= md) */}
         <Header nombre={nombre} rol={rol} />
 
-        <main className="flex-1 overflow-y-auto bg-huellitas-cream p-4 md:p-6">
+        <main className="flex-1 overflow-y-auto bg-huellitas-cream p-4 md:p-6 print:overflow-visible print:bg-white print:p-0">
           {children}
         </main>
       </div>

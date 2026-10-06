@@ -2,12 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Smartphone, Building2, X, Lock } from "lucide-react";
+import { AlertTriangle, Smartphone, Building2, Lock } from "lucide-react";
 import StepperPago from "@/components/StepperPago";
-import ModalPagoYape from "@/components/ModalPagoYape";
-import ModalPagoTransferencia from "@/components/ModalPagoTransferencia";
+import Modal from "@/components/Modal";
+import ModalPago from "@/components/ModalPago";
 import ModalCambiarPassword from "@/components/ModalCambiarPassword";
-import ModalPagoTotal from "@/components/ModalPagoTotal";
 import PerfilEstudiante from "@/components/PerfilEstudiante";
 import MisDocentes from "@/components/MisDocentes";
 import ListaCuotas from "@/components/ListaCuotas";
@@ -20,6 +19,7 @@ export default function PadreDashboard({
   estudiante,
   matricula,
   cuotas,
+  areas,
   notas,
   observaciones = [],
   apoderados = [],
@@ -35,8 +35,7 @@ export default function PadreDashboard({
 
   const [bannerVisible, setBannerVisible] = useState(estudiante.password_cambiado === false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [modalPago, setModalPago] = useState(null);
-  const [showModalTotal, setShowModalTotal] = useState(false);
+  const [modalPago, setModalPago] = useState(null); // { metodo, cuotas }
   const [showHistorial, setShowHistorial] = useState(false);
   const [toast, setToast] = useState("");
 
@@ -50,16 +49,7 @@ export default function PadreDashboard({
   // debe. Las siguientes quedan bloqueadas hasta pagar la anterior. (El botón
   // "Pagar todo" no se ve afectado, para quienes adelantan cuotas.)
   const cuotaPagableId = siguienteCuotaPorPagar(cuotas)?.id ?? null;
-  const detalleTotal = cuotasPagables.map((c) => {
-    const { monto } = montoACobrar(c);
-    return {
-      id: c.id,
-      concepto: `${c.conceptos_cobro?.nombre ?? "Pensión"}${
-        c.mes ? ` ${MESES[c.mes]}` : ""
-      }`,
-      monto,
-    };
-  });
+  const detalleTotal = cuotasPagables.map(paraPagar);
   const totalPagar = detalleTotal.reduce((s, d) => s + Number(d.monto), 0);
 
   function mostrarToast(mensaje) {
@@ -68,16 +58,7 @@ export default function PadreDashboard({
   }
 
   function abrirPago(cuota, metodo) {
-    const { monto } = montoACobrar(cuota);
-    setModalPago({
-      metodo,
-      cuota: {
-        id: cuota.id,
-        matriculaId: matricula.id,
-        concepto: cuota.conceptos_cobro?.nombre ?? "Pensión",
-        monto,
-      },
-    });
+    setModalPago({ metodo, cuotas: [paraPagar(cuota)] });
   }
 
   function handlePagoEnviado() {
@@ -146,7 +127,7 @@ export default function PadreDashboard({
           </div>
           <button
             type="button"
-            onClick={() => setShowModalTotal(true)}
+            onClick={() => setModalPago({ metodo: "yape", cuotas: detalleTotal })}
             className="w-full shrink-0 rounded-lg bg-huellitas-accent px-6 py-3 text-sm font-semibold text-huellitas-primary transition-colors hover:bg-huellitas-accent-dark hover:text-white sm:w-auto"
           >
             Pagar todo lo pendiente
@@ -200,41 +181,19 @@ export default function PadreDashboard({
 
       <MisComprobantes comprobantes={comprobantes} />
 
-      <NotasPadre anio={anioActual} notas={notas} observaciones={observaciones} />
+      <NotasPadre anio={anioActual} areas={areas} notas={notas} observaciones={observaciones} />
 
       {/* MODALES */}
-      {modalPago?.metodo === "yape" && (
-        <ModalPagoYape
-          open
-          onClose={() => setModalPago(null)}
-          cuota={modalPago.cuota}
+      {modalPago && (
+        <ModalPago
+          {...modalPago}
+          matriculaId={matricula.id}
           estudianteNombre={estudianteNombre}
           apoderados={apoderados}
+          onClose={() => setModalPago(null)}
           onSubmitted={handlePagoEnviado}
         />
       )}
-
-      {modalPago?.metodo === "transferencia" && (
-        <ModalPagoTransferencia
-          open
-          onClose={() => setModalPago(null)}
-          cuota={modalPago.cuota}
-          estudianteNombre={estudianteNombre}
-          apoderados={apoderados}
-          onSubmitted={handlePagoEnviado}
-        />
-      )}
-
-      <ModalPagoTotal
-        open={showModalTotal}
-        onClose={() => setShowModalTotal(false)}
-        matriculaId={matricula.id}
-        estudianteNombre={estudianteNombre}
-        detalle={detalleTotal}
-        total={totalPagar}
-        apoderados={apoderados}
-        onSubmitted={handlePagoEnviado}
-      />
 
       <ModalCambiarPassword
         open={showPasswordModal}
@@ -243,26 +202,9 @@ export default function PadreDashboard({
       />
 
       {showHistorial && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-huellitas-ink/50 p-4">
-          <div className="max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-5 shadow-lg sm:p-6">
-            <div className="flex items-center justify-between">
-              <h3 className="font-display text-lg font-semibold text-huellitas-primary">
-                Historial de cuotas {anioActual}
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowHistorial(false)}
-                className="text-stone-400 hover:text-stone-600"
-              >
-                <X className="h-5 w-5" strokeWidth={2} />
-              </button>
-            </div>
-
-            <div className="mt-2">
-              <ListaCuotas cuotas={cuotas} anio={anioActual} />
-            </div>
-          </div>
-        </div>
+        <Modal titulo={`Historial de cuotas ${anioActual}`} onCerrar={() => setShowHistorial(false)} ancho="sm:max-w-2xl">
+          <ListaCuotas cuotas={cuotas} anio={anioActual} />
+        </Modal>
       )}
 
       {toast && (
@@ -272,6 +214,15 @@ export default function PadreDashboard({
       )}
     </div>
   );
+}
+
+// Cuota lista para el modal de pago: concepto y monto que se cobra hoy.
+function paraPagar(cuota) {
+  return {
+    id: cuota.id,
+    concepto: `${cuota.conceptos_cobro?.nombre ?? "Pensión"}${cuota.mes ? ` ${MESES[cuota.mes]}` : ""}`,
+    monto: montoACobrar(cuota).monto,
+  };
 }
 
 function CuotaDelMes({ cuota, mesActual, onPagar, bloqueada = false }) {

@@ -10,7 +10,7 @@ export default async function PadreLayout({ children }) {
   const matricula = estudiante ? await matriculaVigente(supabase, estudiante.id) : null;
 
   return (
-    <div className="flex min-h-dvh flex-col bg-huellitas-cream">
+    <div className="flex min-h-dvh flex-col bg-huellitas-cream print:bg-white">
       <header className="bg-gradient-to-r from-huellitas-primary to-huellitas-primary-dark px-4 py-4 md:px-6 print:hidden">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
           <div className="flex shrink-0 items-center gap-2">

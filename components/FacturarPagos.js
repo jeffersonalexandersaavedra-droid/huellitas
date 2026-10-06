@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Search, Receipt, FileCheck2 } from "lucide-react";
 import { ModalComprobante, AvisoComprobante } from "@/components/FormularioComprobante";
 import AvisoVacio from "@/components/AvisoVacio";
-import { inputClass } from "@/lib/ui";
+import { inputClass, coincide } from "@/lib/ui";
 import { MESES, formatFecha } from "@/lib/fecha";
 import { formatSoles } from "@/lib/cuentas";
 import { METODOS_PAGO } from "@/lib/pagoInfo";
@@ -19,10 +19,7 @@ export default function FacturarPagos({ pagos, configurado, consultaHabilitada }
   const [abierto, setAbierto] = useState(null);
   const [resultado, setResultado] = useState(null);
 
-  const visibles = useMemo(() => {
-    const q = busqueda.trim().toLowerCase();
-    return q ? pagos.filter((p) => p.alumno.toLowerCase().includes(q) || p.aula.toLowerCase().includes(q)) : pagos;
-  }, [busqueda, pagos]);
+  const visibles = useMemo(() => pagos.filter((p) => coincide(busqueda, p.alumno, p.aula)), [busqueda, pagos]);
 
   function emitido(r) {
     setAbierto(null);

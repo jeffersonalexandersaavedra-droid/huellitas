@@ -47,7 +47,7 @@ export default function RootLayout({ children }) {
       lang="es"
       className={`${inter.variable} ${fraunces.variable} h-full scroll-smooth antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-huellitas-cream text-huellitas-ink">
+      <body className="min-h-full flex flex-col bg-huellitas-cream text-huellitas-ink print:bg-white">
         {children}
       </body>
     </html>

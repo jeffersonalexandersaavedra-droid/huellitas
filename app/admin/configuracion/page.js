@@ -3,10 +3,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import UsuariosManager from "@/components/UsuariosManager";
 import CursosManager from "@/components/CursosManager";
 import AuditoriaLista from "@/components/AuditoriaLista";
+import { ROLES_PERSONAL } from "@/lib/roles";
 
 export const metadata = { title: "Configuración" };
 
-const ROLES_PERSONAL = ["admin", "secretaria"];
 
 export default async function ConfiguracionPage() {
   const supabase = await createClient();
@@ -17,7 +17,7 @@ export default async function ConfiguracionPage() {
   const [{ data: cursos }, { data: lista }, { data: auditoria }] = await Promise.all([
     supabase
       .from("cursos")
-      .select("id, nombre, nivel, activo")
+      .select("id, nombre, nivel, activo, competencias")
       .order("nivel", { ascending: true })
       .order("nombre", { ascending: true }),
     // Listar cuentas de Auth requiere la service role.

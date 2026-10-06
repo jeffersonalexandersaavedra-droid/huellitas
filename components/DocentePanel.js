@@ -1,64 +1,56 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Save, Download, BookOpen } from "lucide-react";
+import { Save, BookOpen } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { NOTAS_LITERALES, BIMESTRES, abreviarCurso } from "@/lib/cursos";
+import { CONCLUSION_MIN, CONCLUSION_MAX, NOTA_VACIA, claveNota, conclusionValida } from "@/lib/cursos";
+import { bimestreActualPorMes } from "@/lib/bimestres";
 import { registroDelAula, aulasDeAsignaciones } from "@/lib/consultas";
-import { descargarExcel, hojaDeNotas } from "@/lib/excel";
-import { inputClass } from "@/lib/ui";
 import AvisoVacio from "@/components/AvisoVacio";
+import SelectorRegistro from "@/components/SelectorRegistro";
+import TablaCompetencias from "@/components/TablaCompetencias";
+import DescargasRegistro from "@/components/DescargasRegistro";
 
-// Escala literal + vacío; conserva una nota antigua que no esté en la escala.
-function opcionesNota(actual) {
-  const opciones = ["", ...NOTAS_LITERALES];
-  return actual && !opciones.includes(actual) ? [...opciones, actual] : opciones;
-}
-
-export default function DocentePanel({ docenteId, docente, anio, asignaciones }) {
+// Registro de notas del docente por competencias: elige aula, bimestre y
+// área; pone el nivel de logro de cada competencia y, si quiere, la
+// conclusión descriptiva y el comentario general del estudiante.
+export default function DocentePanel({ docenteId, docente, anio, asignaciones, areasPorNivel }) {
   const supabase = createClient();
   const aulas = useMemo(() => aulasDeAsignaciones(asignaciones), [asignaciones]);
 
   const [aulaId, setAulaId] = useState(aulas[0]?.id ?? "");
-  const [bimestre, setBimestre] = useState(1);
+  const [bimestre, setBimestre] = useState(() => bimestreActualPorMes(new Date().getMonth() + 1));
+  const [areaNombre, setAreaNombre] = useState("");
 
-  // Cursos (columnas) que el docente dicta en el aula seleccionada.
-  const cursos = useMemo(
-    () =>
-      asignaciones
-        .filter((a) => a.aula_id === aulaId)
-        .map((a) => a.curso)
-        .sort(),
-    [asignaciones, aulaId]
-  );
+  const aula = aulas.find((a) => a.id === aulaId);
+  // Áreas con competencias que el docente dicta en el aula.
+  const { areas, sinCompetencias } = useMemo(() => {
+    const asignados = asignaciones.filter((a) => a.aula_id === aulaId).map((a) => a.curso);
+    const delNivel = (areasPorNivel[aula?.nivel] ?? []).filter((a) => asignados.includes(a.nombre));
+    return {
+      areas: delNivel,
+      sinCompetencias: asignados.filter((c) => !delNivel.some((a) => a.nombre === c)).sort(),
+    };
+  }, [asignaciones, areasPorNivel, aulaId, aula?.nivel]);
+  const area = areas.find((a) => a.nombre === areaNombre) ?? areas[0];
 
-  const [estudiantes, setEstudiantes] = useState([]); // [{matriculaId, nombre}]
-  const [notas, setNotas] = useState({}); // { matriculaId: { curso: nota } }
-  const [observaciones, setObservaciones] = useState({}); // { matriculaId: texto }
-  const [orig, setOrig] = useState({ notas: {}, obs: {} });
+  const [registro, setRegistro] = useState({ estudiantes: [], notas: {}, observaciones: {} });
+  const [original, setOriginal] = useState({ notas: {}, observaciones: {} });
   const [cargando, setCargando] = useState(false);
   const [guardando, setGuardando] = useState(false);
-  const [mensaje, setMensaje] = useState("");
-
-  const aulaSel = aulas.find((a) => a.id === aulaId);
+  const [mensaje, setMensaje] = useState(null); // { ok, texto }
 
   useEffect(() => {
-    if (!aulaId || !bimestre) return;
+    if (!aulaId) return;
     let cancelado = false;
 
     async function cargar() {
       setCargando(true);
-      setMensaje("");
-      const registro = await registroDelAula(supabase, { aulaId, bimestre, docenteId });
+      setMensaje(null);
+      const datos = await registroDelAula(supabase, { aulaId, bimestre, docenteId });
       if (cancelado) return;
-      setEstudiantes(registro.estudiantes);
-      setNotas(registro.notas);
-      setObservaciones(registro.observaciones);
-      // Copia profunda para comparar al guardar
-      setOrig({
-        notas: JSON.parse(JSON.stringify(registro.notas)),
-        obs: { ...registro.observaciones },
-      });
+      setRegistro(datos);
+      setOriginal({ notas: datos.notas, observaciones: datos.observaciones });
       setCargando(false);
     }
 
@@ -69,259 +61,166 @@ export default function DocentePanel({ docenteId, docente, anio, asignaciones })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aulaId, bimestre]);
 
-  function setNota(matriculaId, curso, valor) {
-    setNotas((prev) => ({
+  // Cambios pendientes respecto de lo guardado, ya validados.
+  const cambios = useMemo(() => {
+    const notas = [];
+    const borrar = [];
+    const observaciones = [];
+    const errores = [];
+
+    for (const e of registro.estudiantes) {
+      const mId = e.matriculaId;
+      for (const a of areas) {
+        a.competencias.forEach((_, i) => {
+          const clave = claveNota(a.nombre, i + 1);
+          const actual = registro.notas[mId]?.[clave] ?? NOTA_VACIA;
+          const antes = original.notas[mId]?.[clave] ?? NOTA_VACIA;
+          const conclusion = actual.conclusion.trim();
+          if (actual.nota === antes.nota && conclusion === antes.conclusion.trim()) return;
+
+          const donde = `C${i + 1} de ${a.nombre} (${e.corto})`;
+          if (!actual.nota && conclusion) {
+            errores.push(`Falta el nivel de logro en ${donde}.`);
+          } else if (!conclusionValida(conclusion)) {
+            errores.push(`La conclusión de ${donde} debe tener entre ${CONCLUSION_MIN} y ${CONCLUSION_MAX} caracteres.`);
+          } else if (actual.nota) {
+            notas.push({ matricula_id: mId, curso: a.nombre, competencia: i + 1, nota: actual.nota, conclusion: conclusion || null });
+          } else {
+            borrar.push({ matricula_id: mId, curso: a.nombre, competencia: i + 1 });
+          }
+        });
+      }
+      const texto = (registro.observaciones[mId] ?? "").trim();
+      if (texto !== (original.observaciones[mId] ?? "").trim()) observaciones.push({ matricula_id: mId, texto });
+    }
+    return { notas, borrar, observaciones, errores, total: notas.length + borrar.length + observaciones.length };
+  }, [registro, original, areas]);
+
+  const pendientes = cambios.total + cambios.errores.length;
+
+  function confirmarSalida(cambiar) {
+    return (valor) => {
+      if (pendientes && !confirm("Tienes notas sin guardar en este bimestre. ¿Cambiar de todos modos?")) return;
+      cambiar(valor);
+    };
+  }
+
+  function cambiarNota(matriculaId, clave, cambio) {
+    setRegistro((prev) => ({
       ...prev,
-      [matriculaId]: { ...(prev[matriculaId] || {}), [curso]: valor },
+      notas: {
+        ...prev.notas,
+        [matriculaId]: {
+          ...prev.notas[matriculaId],
+          [clave]: { ...NOTA_VACIA, ...prev.notas[matriculaId]?.[clave], ...cambio },
+        },
+      },
     }));
   }
-  function setObs(matriculaId, valor) {
-    setObservaciones((prev) => ({ ...prev, [matriculaId]: valor }));
+
+  function cambiarObservacion(matriculaId, texto) {
+    setRegistro((prev) => ({ ...prev, observaciones: { ...prev.observaciones, [matriculaId]: texto } }));
   }
 
   async function guardar() {
-    setGuardando(true);
-    setMensaje("");
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    const userId = user?.id ?? null;
-
-    const notasUpsert = [];
-    const notasBorrar = []; // {matricula_id, curso}
-    const obsUpsert = [];
-    const obsBorrar = [];
-
-    for (const est of estudiantes) {
-      const mId = est.matriculaId;
-      for (const curso of cursos) {
-        const actual = (notas[mId]?.[curso] ?? "").trim();
-        const original = (orig.notas[mId]?.[curso] ?? "").trim();
-        if (actual === original) continue;
-        if (actual) {
-          notasUpsert.push({
-            matricula_id: mId,
-            curso,
-            bimestre,
-            nota: actual,
-            registrado_por: userId,
-          });
-        } else if (original) {
-          notasBorrar.push({ matricula_id: mId, curso });
-        }
-      }
-      const obsActual = (observaciones[mId] ?? "").trim();
-      const obsOriginal = (orig.obs[mId] ?? "").trim();
-      if (obsActual !== obsOriginal) {
-        if (obsActual) {
-          obsUpsert.push({
-            matricula_id: mId,
-            docente_id: docenteId,
-            bimestre,
-            texto: obsActual,
-            registrado_por: userId,
-          });
-        } else if (obsOriginal) {
-          obsBorrar.push(mId);
-        }
-      }
+    if (cambios.errores.length) {
+      setMensaje({ ok: false, texto: cambios.errores.join(" ") });
+      return;
     }
-
+    if (!cambios.total) {
+      setMensaje({ ok: true, texto: "No había cambios por guardar." });
+      return;
+    }
+    setGuardando(true);
+    setMensaje(null);
     try {
-      if (notasUpsert.length) {
-        const { error } = await supabase
-          .from("notas_curso")
-          .upsert(notasUpsert, { onConflict: "matricula_id,curso,bimestre" });
-        if (error) throw error;
-      }
-      for (const b of notasBorrar) {
-        await supabase
-          .from("notas_curso")
-          .delete()
-          .eq("matricula_id", b.matricula_id)
-          .eq("curso", b.curso)
-          .eq("bimestre", bimestre);
-      }
-      if (obsUpsert.length) {
-        const { error } = await supabase
-          .from("observaciones_estudiante")
-          .upsert(obsUpsert, { onConflict: "matricula_id,docente_id,bimestre" });
-        if (error) throw error;
-      }
-      if (obsBorrar.length) {
-        await supabase
-          .from("observaciones_estudiante")
-          .delete()
-          .eq("docente_id", docenteId)
-          .eq("bimestre", bimestre)
-          .in("matricula_id", obsBorrar);
-      }
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-      setOrig({
-        notas: JSON.parse(JSON.stringify(notas)),
-        obs: { ...observaciones },
-      });
-      const cambios = notasUpsert.length + notasBorrar.length + obsUpsert.length + obsBorrar.length;
-      setMensaje(cambios ? "Notas guardadas correctamente." : "No había cambios por guardar.");
-    } catch (e) {
-      setMensaje("Error al guardar: " + e.message);
+      const autor = user?.id ?? null;
+
+      const operaciones = [
+        ...cambios.borrar.map((b) => supabase.from("notas_curso").delete().match({ ...b, bimestre })),
+        ...cambios.observaciones.map(({ matricula_id, texto }) => {
+          const clave = { matricula_id, docente_id: docenteId, bimestre };
+          return texto
+            ? supabase
+                .from("observaciones_estudiante")
+                .upsert({ ...clave, texto, registrado_por: autor }, { onConflict: "matricula_id,docente_id,bimestre" })
+            : supabase.from("observaciones_estudiante").delete().match(clave);
+        }),
+      ];
+      if (cambios.notas.length) {
+        operaciones.push(
+          supabase
+            .from("notas_curso")
+            .upsert(
+              cambios.notas.map((n) => ({ ...n, bimestre, registrado_por: autor })),
+              { onConflict: "matricula_id,curso,competencia,bimestre" }
+            )
+        );
+      }
+      const fallo = (await Promise.all(operaciones)).find((r) => r.error);
+      if (fallo) throw fallo.error;
+
+      setOriginal({ notas: registro.notas, observaciones: registro.observaciones });
+      setMensaje({ ok: true, texto: "Notas guardadas correctamente." });
+    } catch (error) {
+      setMensaje({ ok: false, texto: `No se pudo guardar: ${error.message}` });
     } finally {
       setGuardando(false);
     }
   }
 
-  // Registro auxiliar en Excel, listo para imprimir o transcribir al SIAGIE.
-  function descargarRegistro() {
-    descargarExcel(`registro_auxiliar_${aulaSel?.nombre ?? "aula"}_bim${bimestre}`, [
-      hojaDeNotas({
-        titulo: "REGISTRO AUXILIAR DE EVALUACIÓN",
-        aula: aulaSel?.nombre ?? "",
-        bimestre,
-        anio,
-        docente,
-        cursos,
-        filas: estudiantes.map((e) => ({
-          nombre: e.nombre,
-          dni: e.dni,
-          notas: notas[e.matriculaId] ?? {},
-          observacion: observaciones[e.matriculaId],
-        })),
-      }),
-    ]);
-  }
-
-  if (asignaciones.length === 0) {
+  if (aulas.length === 0) {
     return (
-      <AvisoVacio icono={BookOpen}>
-        Todavía no tienes aulas asignadas. Comunícate con administración.
-      </AvisoVacio>
+      <AvisoVacio icono={BookOpen}>Todavía no tienes aulas asignadas. Comunícate con administración.</AvisoVacio>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* Selectores */}
-      <div className="grid grid-cols-2 gap-3 rounded-xl bg-white p-3 shadow-sm sm:p-4">
-        <label className="block">
-          <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-stone-400">
-            Aula
-          </span>
-          <select value={aulaId} onChange={(e) => setAulaId(e.target.value)} className={inputClass}>
-            {aulas.map((a) => (
-              <option key={a.id} value={a.id}>{a.nombre}</option>
-            ))}
-          </select>
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-stone-400">
-            Bimestre
-          </span>
-          <select value={bimestre} onChange={(e) => setBimestre(Number(e.target.value))} className={inputClass}>
-            {BIMESTRES.map((b) => (
-              <option key={b} value={b}>Bimestre {b}</option>
-            ))}
-          </select>
-        </label>
-      </div>
+      <SelectorRegistro
+        aulas={aulas}
+        aulaId={aulaId}
+        onAula={confirmarSalida(setAulaId)}
+        bimestre={bimestre}
+        onBimestre={confirmarSalida(setBimestre)}
+        areas={areas}
+        area={area}
+        onArea={setAreaNombre}
+      />
 
-      {/* Matriz */}
       <div className="rounded-xl bg-white p-3 shadow-sm sm:p-6">
         {cargando ? (
           <p className="py-8 text-center text-sm text-stone-400">Cargando...</p>
-        ) : estudiantes.length === 0 ? (
+        ) : registro.estudiantes.length === 0 ? (
+          <p className="py-8 text-center text-sm text-stone-400">No hay estudiantes matriculados en esta aula.</p>
+        ) : !area ? (
           <p className="py-8 text-center text-sm text-stone-400">
-            No hay estudiantes matriculados en esta aula.
-          </p>
-        ) : cursos.length === 0 ? (
-          <p className="py-8 text-center text-sm text-stone-400">
-            No tienes cursos asignados en esta aula.
+            No tienes áreas con competencias para calificar en esta aula.
           </p>
         ) : (
           <>
-            {/* En celular: columnas angostas con abreviaturas; la tabla se
-                desliza dentro de su tarjeta y el nombre queda fijo. */}
-            <div className="-mx-3 overflow-x-auto sm:mx-0">
-              <table className="w-full border-separate border-spacing-0 text-xs sm:text-sm">
-                <thead>
-                  <tr>
-                    <th className="sticky left-0 z-10 w-28 border-b border-r border-stone-200 bg-white px-3 py-2 text-left font-medium uppercase tracking-wide text-stone-400 sm:w-auto sm:min-w-[11rem]">
-                      Estudiante
-                    </th>
-                    {cursos.map((c) => (
-                      <th
-                        key={c}
-                        title={c}
-                        className="border-b border-stone-200 px-1 py-2 text-center text-xs font-semibold leading-tight text-huellitas-primary sm:min-w-[4.25rem] sm:px-1.5 sm:font-medium"
-                      >
-                        <span className="sm:hidden">{abreviarCurso(c)}</span>
-                        <span className="hidden sm:inline">{c}</span>
-                      </th>
-                    ))}
-                    <th className="min-w-[11rem] border-b border-stone-200 px-2 py-2 text-left font-medium uppercase tracking-wide text-stone-400">
-                      Observación
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {estudiantes.map((e, i) => (
-                    <tr key={e.matriculaId} className="group">
-                      <td
-                        title={e.nombre}
-                        className="sticky left-0 z-10 max-w-[7rem] border-b border-r border-stone-100 bg-white px-3 py-1.5 text-huellitas-ink group-hover:bg-huellitas-cream sm:max-w-none"
-                      >
-                        <span className="block truncate">
-                          <span className="text-stone-400">{i + 1}. </span>
-                          <span className="sm:hidden">{e.corto}</span>
-                          <span className="hidden sm:inline">{e.nombre}</span>
-                        </span>
-                      </td>
-                      {cursos.map((c) => (
-                        <td key={c} className="border-b border-stone-100 px-0.5 py-1.5 text-center group-hover:bg-huellitas-cream sm:px-1">
-                          <select
-                            aria-label={`${c} de ${e.nombre}`}
-                            value={notas[e.matriculaId]?.[c] ?? ""}
-                            onChange={(ev) => setNota(e.matriculaId, c, ev.target.value)}
-                            className={`h-8 w-10 appearance-none rounded-md border border-stone-300 bg-white px-0 text-center font-semibold outline-none [text-align-last:center] focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20 sm:h-9 sm:w-14 ${
-                              notas[e.matriculaId]?.[c] ? "text-huellitas-primary" : "text-stone-300"
-                            }`}
-                          >
-                            {opcionesNota(notas[e.matriculaId]?.[c]).map((n) => (
-                              <option key={n} value={n}>
-                                {n || "–"}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                      ))}
-                      <td className="border-b border-stone-100 px-1 py-1.5 group-hover:bg-huellitas-cream">
-                        <input
-                          type="text"
-                          aria-label={`Observación de ${e.nombre}`}
-                          value={observaciones[e.matriculaId] ?? ""}
-                          onChange={(ev) => setObs(e.matriculaId, ev.target.value)}
-                          placeholder="Observación del bimestre"
-                          className="h-8 w-full rounded-md border border-stone-200 bg-huellitas-cream px-2 outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20 sm:h-9"
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <h2 className="font-display text-lg font-semibold text-huellitas-primary">{area.nombre}</h2>
+            <div className="mt-3">
+              <TablaCompetencias
+                area={area}
+                estudiantes={registro.estudiantes}
+                notas={registro.notas}
+                observaciones={registro.observaciones}
+                onNota={cambiarNota}
+                onObservacion={cambiarObservacion}
+              />
             </div>
 
-            <p className="mt-3 text-xs leading-relaxed text-stone-500 sm:hidden">
-              {cursos.map((c) => `${abreviarCurso(c)} = ${c}`).join(" · ")}
-            </p>
-
-            <div className="mt-4 flex flex-col gap-3 sm:mt-6 sm:flex-row sm:items-center sm:justify-between">
-              <button
-                type="button"
-                onClick={descargarRegistro}
-                className="flex items-center justify-center gap-2 rounded-lg border border-huellitas-primary px-4 py-2.5 text-sm font-medium text-huellitas-primary transition-colors hover:bg-huellitas-primary-light"
-              >
-                <Download className="h-4 w-4" strokeWidth={2} />
-                Descargar registro auxiliar (Excel)
-              </button>
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-stone-500">
+                {pendientes
+                  ? `Cambios sin guardar: ${pendientes} (en todas tus áreas de este bimestre).`
+                  : "Todo guardado."}
+              </p>
               <button
                 type="button"
                 onClick={guardar}
@@ -336,18 +235,29 @@ export default function DocentePanel({ docenteId, docente, anio, asignaciones })
             {mensaje && (
               <p
                 className={`mt-3 rounded-lg px-3 py-2 text-sm ${
-                  mensaje.startsWith("Error")
-                    ? "bg-rose-50 text-rose-700"
-                    : "bg-emerald-50 text-emerald-700"
+                  mensaje.ok ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
                 }`}
               >
-                {mensaje}
+                {mensaje.texto}
               </p>
             )}
+
+            <div className="mt-6 border-t border-stone-100 pt-5">
+              <DescargasRegistro
+                aula={aula}
+                bloqueado={pendientes ? "Guarda tus cambios antes de completar el archivo del SIAGIE." : ""}
+                datosRegistro={() => ({ anio, bimestre, aula, docente, areas, ...registro })}
+                cargarRegistro={async (b) => ({ areas, ...(await registroDelAula(supabase, { aulaId, bimestre: b })) })}
+              />
+            </div>
           </>
+        )}
+        {sinCompetencias.length > 0 && (
+          <p className="mt-4 text-xs text-stone-400">
+            Sin competencias para calificar: {sinCompetencias.join(", ")}.
+          </p>
         )}
       </div>
     </div>
   );
 }
-

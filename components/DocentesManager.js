@@ -13,6 +13,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import ResetPasswordButton from "@/components/ResetPasswordButton";
 import { inputClass } from "@/lib/ui";
+import { PASSWORD_MIN } from "@/lib/validacion";
 import Campo from "@/components/Campo";
 
 const FORM_VACIO = {
@@ -111,9 +112,9 @@ export default function DocentesManager({
               placeholder="Opcional: también podrá entrar con él" />
           </Campo>
           <Campo label="Contraseña temporal" required>
-            <input type="text" required minLength={6} value={form.password}
+            <input type="text" required minLength={PASSWORD_MIN} value={form.password}
               onChange={(e) => actualizar("password", e.target.value)} className={inputClass}
-              placeholder="Mínimo 6 caracteres" />
+              placeholder={`Mínimo ${PASSWORD_MIN} caracteres`} />
           </Campo>
 
           <div className="sm:col-span-2">

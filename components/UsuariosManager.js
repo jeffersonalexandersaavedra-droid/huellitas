@@ -6,6 +6,7 @@ import { UserPlus, Trash2, ShieldCheck, Wallet } from "lucide-react";
 import { formatFecha } from "@/lib/fecha";
 import { ROLES } from "@/lib/roles";
 import { inputClass } from "@/lib/ui";
+import { PASSWORD_MIN } from "@/lib/validacion";
 import Campo from "@/components/Campo";
 
 const FORM_VACIO = { nombre: "", email: "", password: "", rol: "secretaria" };
@@ -99,11 +100,11 @@ export default function UsuariosManager({ usuarios }) {
             <input
               type="text"
               required
-              minLength={6}
+              minLength={PASSWORD_MIN}
               value={form.password}
               onChange={(e) => actualizar("password", e.target.value)}
               className={inputClass}
-              placeholder="Mínimo 6 caracteres"
+              placeholder={`Mínimo ${PASSWORD_MIN} caracteres`}
             />
           </Campo>
 

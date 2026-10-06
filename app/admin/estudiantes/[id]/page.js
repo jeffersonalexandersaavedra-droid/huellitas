@@ -1,12 +1,13 @@
 import { notFound } from "next/navigation";
-import { FileDown } from "lucide-react";
+import Link from "next/link";
+import { FileDown, FileText } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import EstadoBadge from "@/components/EstadoBadge";
 import EstadoCuentaBadge from "@/components/EstadoCuentaBadge";
-import NotaBadge from "@/components/NotaBadge";
 import ResetPasswordButton from "@/components/ResetPasswordButton";
 import { MESES, formatFecha } from "@/lib/fecha";
 import { tieneDeuda, montoACobrar, formatSoles } from "@/lib/cuentas";
+import { BIMESTRES } from "@/lib/cursos";
 
 export const metadata = { title: "Ficha del estudiante" };
 
@@ -44,11 +45,7 @@ export default async function EstudianteDetallePage({ params }) {
           .select("id, mes, monto, monto_con_descuento, fecha_vencimiento, estado, conceptos_cobro(nombre)")
           .eq("matricula_id", matricula.id)
           .order("mes", { ascending: true }),
-        supabase
-          .from("notas_curso")
-          .select("id, curso, bimestre, nota, comentario")
-          .eq("matricula_id", matricula.id)
-          .order("bimestre", { ascending: true }),
+        supabase.from("notas_curso").select("bimestre").eq("matricula_id", matricula.id),
       ])
     : [{ data: [] }, { data: [] }];
 
@@ -57,11 +54,9 @@ export default async function EstudianteDetallePage({ params }) {
   const apoderados = (vinculos ?? []).slice().sort((a, b) => Number(b.es_principal) - Number(a.es_principal));
   const conDeuda = tieneDeuda(cuotas);
 
-  const notasPorBimestre = new Map();
-  for (const n of notas) {
-    if (!notasPorBimestre.has(n.bimestre)) notasPorBimestre.set(n.bimestre, []);
-    notasPorBimestre.get(n.bimestre).push(n);
-  }
+  // Competencias calificadas por bimestre.
+  const calificadas = {};
+  for (const n of notas) calificadas[n.bimestre] = (calificadas[n.bimestre] ?? 0) + 1;
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -205,30 +200,30 @@ export default async function EstudianteDetallePage({ params }) {
       </section>
 
       <section className="rounded-xl bg-white p-6 shadow-sm">
-        <h2 className="font-display text-lg font-semibold text-huellitas-primary">Notas</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="font-display text-lg font-semibold text-huellitas-primary">Notas</h2>
+          {notas.length > 0 && (
+            <Link
+              href={`/admin/estudiantes/${estudiante.id}/informe`}
+              className="flex items-center gap-2 rounded-lg border border-huellitas-primary px-3 py-1.5 text-sm font-medium text-huellitas-primary transition-colors hover:bg-huellitas-primary-light"
+            >
+              <FileText className="h-4 w-4" strokeWidth={2} />
+              Informe de progreso
+            </Link>
+          )}
+        </div>
         {notas.length === 0 ? (
           <p className="mt-3 text-sm text-stone-400">No hay notas registradas.</p>
         ) : (
-          <div className="mt-4 space-y-6">
-            {Array.from(notasPorBimestre.entries()).map(([bimestre, filas]) => (
-              <div key={bimestre}>
-                <p className="text-sm font-medium text-huellitas-ink">Bimestre {bimestre}</p>
-                <table className="mt-2 w-full text-left text-sm">
-                  <tbody>
-                    {filas.map((n) => (
-                      <tr key={n.id} className="border-b border-stone-50">
-                        <td className="py-2 pr-4 text-huellitas-ink">{n.curso}</td>
-                        <td className="py-2 pr-4">
-                          <NotaBadge nota={n.nota} />
-                        </td>
-                        <td className="py-2 text-stone-500">{n.comentario || "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+          <ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {BIMESTRES.map((b) => (
+              <li key={b} className="rounded-lg border border-stone-200 p-3">
+                <p className="text-xs text-stone-400">Bimestre {b}</p>
+                <p className="text-lg font-semibold text-huellitas-ink">{calificadas[b] ?? 0}</p>
+                <p className="text-xs text-stone-500">competencias calificadas</p>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
       </section>
     </div>

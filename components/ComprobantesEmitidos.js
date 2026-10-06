@@ -2,12 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ExternalLink, RefreshCw, Ban, Search, FileText, X } from "lucide-react";
+import { ExternalLink, RefreshCw, Ban, Search, FileText } from "lucide-react";
 import ExportarExcelButton from "@/components/ExportarExcelButton";
 import AvisoVacio from "@/components/AvisoVacio";
 import Campo from "@/components/Campo";
+import Modal from "@/components/Modal";
 import { AvisoComprobante } from "@/components/FormularioComprobante";
-import { controlClass, inputClass } from "@/lib/ui";
+import { controlClass, inputClass, coincide } from "@/lib/ui";
 import { formatFecha, hoyISO } from "@/lib/fecha";
 import { formatSoles } from "@/lib/cuentas";
 import {
@@ -37,17 +38,13 @@ export default function ComprobantesEmitidos({ comprobantes, delDia, mes, dia, c
   const [error, setError] = useState("");
 
   const anuladosConNota = useMemo(() => new Set(conNota), [conNota]);
-  const visibles = useMemo(() => {
-    const q = busqueda.trim().toLowerCase();
-    return comprobantes.filter(
-      (c) =>
-        (!tipo || c.tipo === tipo) &&
-        (!q ||
-          c.cliente_nombre.toLowerCase().includes(q) ||
-          (c.alumno ?? "").toLowerCase().includes(q) ||
-          numeroComprobante(c).toLowerCase().includes(q))
-    );
-  }, [comprobantes, tipo, busqueda]);
+  const visibles = useMemo(
+    () =>
+      comprobantes.filter(
+        (c) => (!tipo || c.tipo === tipo) && coincide(busqueda, c.cliente_nombre, c.alumno, numeroComprobante(c))
+      ),
+    [comprobantes, tipo, busqueda]
+  );
 
   const totales = ["boleta", "factura", "nota_credito", "ticket"].map((t) => {
     const lista = comprobantes.filter((c) => c.tipo === t && (t === "nota_credito" ? c.estado !== "rechazado" : VIGENTE(c)));
@@ -230,29 +227,19 @@ function ModalAnular({ comprobante: c, procesando, error, onConfirmar, onCerrar 
   const bajaPosible = c.modo === "electronico" && dias <= DIAS_COMUNICACION_BAJA;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-huellitas-ink/50 sm:items-center sm:p-4">
+    <Modal
+      titulo={`Anular ${TIPOS_CORTOS[c.tipo].toLowerCase()} ${numeroComprobante(c)}`}
+      subtitulo={`${c.cliente_nombre} · ${formatSoles(c.total)}`}
+      onCerrar={onCerrar}
+      ancho="sm:max-w-lg"
+    >
       <form
         onSubmit={(e) => {
           e.preventDefault();
           onConfirmar({ motivo, via: bajaPosible ? via : "nota" });
         }}
-        className="w-full max-w-lg rounded-t-2xl bg-white p-5 shadow-lg sm:rounded-2xl sm:p-6"
       >
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h3 className="font-display text-lg font-semibold text-huellitas-primary">
-              Anular {TIPOS_CORTOS[c.tipo].toLowerCase()} {numeroComprobante(c)}
-            </h3>
-            <p className="text-sm text-stone-500">
-              {c.cliente_nombre} · {formatSoles(c.total)}
-            </p>
-          </div>
-          <button type="button" onClick={onCerrar} aria-label="Cerrar" className="text-stone-400 hover:text-stone-600">
-            <X className="h-5 w-5" strokeWidth={2} />
-          </button>
-        </div>
-
-        <div className="mt-4 space-y-3">
+        <div className="space-y-3">
           <Campo label="Motivo" required>
             <input
               value={motivo}
@@ -321,6 +308,6 @@ function ModalAnular({ comprobante: c, procesando, error, onConfirmar, onCerrar 
           </button>
         </div>
       </form>
-    </div>
+    </Modal>
   );
 }

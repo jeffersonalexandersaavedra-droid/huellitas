@@ -75,7 +75,7 @@ export default async function ReportesPage() {
     subtitulos: [`Año escolar ${anio} · ${filas.length} estudiantes · ${morosos.length} con deuda vencida`],
     columnas: [
       { titulo: "Apellidos y nombres", ancho: 34 },
-      { titulo: "DNI", ancho: 12, tipo: "centro" },
+      { titulo: "DNI", ancho: 12, tipo: "codigo" },
       { titulo: "Aula", ancho: 18 },
       { titulo: "Pensiones pagadas", ancho: 11, tipo: "numero" },
       { titulo: "Pensiones pendientes", ancho: 11, tipo: "numero" },
@@ -104,7 +104,7 @@ export default async function ReportesPage() {
     columnas: [
       { titulo: "Fecha", ancho: 12, tipo: "centro" },
       { titulo: "Estudiante", ancho: 32 },
-      { titulo: "DNI", ancho: 12, tipo: "centro" },
+      { titulo: "DNI", ancho: 12, tipo: "codigo" },
       { titulo: "Aula", ancho: 16 },
       { titulo: "Concepto", ancho: 20 },
       { titulo: "Método", ancho: 14, tipo: "centro" },

@@ -1,178 +1,123 @@
 "use client";
 
 import { useState } from "react";
-import { X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { PASSWORD_MIN, MENSAJE_PASSWORD, passwordValida } from "@/lib/validacion";
+import { inputClass } from "@/lib/ui";
+import Campo from "@/components/Campo";
+import Modal from "@/components/Modal";
 
-function getStrength(password) {
+// Fuerza orientativa de la nueva contraseña.
+function fuerza(password) {
   if (!password) return null;
+  const puntos = [
+    password.length >= 8,
+    password.length >= 12,
+    /[a-z]/.test(password) && /[A-Z]/.test(password),
+    /[0-9]/.test(password),
+    /[^A-Za-z0-9]/.test(password),
+  ].filter(Boolean).length;
 
-  let score = 0;
-  if (password.length >= 8) score++;
-  if (password.length >= 12) score++;
-  if (/[a-z]/.test(password) && /[A-Z]/.test(password)) score++;
-  if (/[0-9]/.test(password)) score++;
-  if (/[^A-Za-z0-9]/.test(password)) score++;
-
-  if (score <= 1) return { label: "Débil", barClassName: "w-1/3 bg-rose-500" };
-  if (score <= 3) return { label: "Media", barClassName: "w-2/3 bg-huellitas-accent" };
-  return { label: "Fuerte", barClassName: "w-full bg-emerald-500" };
+  if (puntos <= 1) return { texto: "Débil", barra: "w-1/3 bg-rose-500" };
+  if (puntos <= 3) return { texto: "Media", barra: "w-2/3 bg-huellitas-accent" };
+  return { texto: "Fuerte", barra: "w-full bg-emerald-500" };
 }
 
+// El padre cambia la contraseña de la cuenta del estudiante (pide la actual).
 export default function ModalCambiarPassword({ open, onClose, onSuccess }) {
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [actual, setActual] = useState("");
+  const [nueva, setNueva] = useState("");
+  const [confirmacion, setConfirmacion] = useState("");
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [guardando, setGuardando] = useState(false);
 
   if (!open) return null;
 
-  const strength = getStrength(newPassword);
+  const nivel = fuerza(nueva);
 
-  function resetAndClose() {
-    setCurrentPassword("");
-    setNewPassword("");
-    setConfirmPassword("");
+  function cerrar() {
+    setActual("");
+    setNueva("");
+    setConfirmacion("");
     setError("");
     onClose();
   }
 
-  async function handleSubmit(event) {
+  async function guardar(event) {
     event.preventDefault();
     setError("");
+    if (!passwordValida(nueva)) return setError(MENSAJE_PASSWORD);
+    if (nueva !== confirmacion) return setError("Las contraseñas no coinciden.");
 
-    if (newPassword.length < 8) {
-      setError("La nueva contraseña debe tener al menos 8 caracteres.");
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setError("Las contraseñas no coinciden.");
-      return;
-    }
-
-    setLoading(true);
+    setGuardando(true);
     const supabase = createClient();
+    const fallar = (mensaje) => {
+      setError(mensaje);
+      setGuardando(false);
+    };
 
     const {
       data: { user },
     } = await supabase.auth.getUser();
+    if (!user?.email) return fallar("Tu sesión expiró. Vuelve a iniciar sesión.");
 
-    if (!user?.email) {
-      setError("Tu sesión expiró. Vuelve a iniciar sesión.");
-      setLoading(false);
-      return;
-    }
+    // Se confirma la contraseña actual antes de cambiarla.
+    const { error: errorActual } = await supabase.auth.signInWithPassword({ email: user.email, password: actual });
+    if (errorActual) return fallar("La contraseña actual no es correcta.");
 
-    const { error: reauthError } = await supabase.auth.signInWithPassword({
-      email: user.email,
-      password: currentPassword,
-    });
+    const { error: errorNueva } = await supabase.auth.updateUser({ password: nueva });
+    if (errorNueva) return fallar("No se pudo actualizar la contraseña. Intenta de nuevo.");
 
-    if (reauthError) {
-      setError("La contraseña actual no es correcta.");
-      setLoading(false);
-      return;
-    }
-
-    const { error: updateError } = await supabase.auth.updateUser({
-      password: newPassword,
-    });
-
-    if (updateError) {
-      setError("No se pudo actualizar la contraseña. Intenta de nuevo.");
-      setLoading(false);
-      return;
-    }
-
-    await supabase
-      .from("estudiantes")
-      .update({ password_cambiado: true })
-      .eq("user_id", user.id);
-
-    setLoading(false);
-    resetAndClose();
+    await supabase.from("estudiantes").update({ password_cambiado: true }).eq("user_id", user.id);
+    setGuardando(false);
+    cerrar();
     onSuccess?.();
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-huellitas-ink/50 p-4">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-lg">
-        <div className="flex items-center justify-between">
-          <h2 className="font-display text-lg font-semibold text-huellitas-primary">
-            Cambiar contraseña
-          </h2>
-          <button
-            type="button"
-            onClick={resetAndClose}
-            className="text-stone-400 hover:text-stone-600"
-          >
-            <X className="h-5 w-5" strokeWidth={2} />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-stone-700">
-              Contraseña actual
-            </label>
-            <input
-              type="password"
-              required
-              value={currentPassword}
-              onChange={(event) => setCurrentPassword(event.target.value)}
-              className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium text-stone-700">
-              Nueva contraseña
-            </label>
-            <input
-              type="password"
-              required
-              minLength={8}
-              value={newPassword}
-              onChange={(event) => setNewPassword(event.target.value)}
-              className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20"
-            />
-            {strength && (
-              <div className="mt-2">
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-stone-100">
-                  <div className={`h-full rounded-full transition-all ${strength.barClassName}`} />
-                </div>
-                <p className="mt-1 text-xs text-stone-500">{strength.label}</p>
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium text-stone-700">
-              Confirmar nueva contraseña
-            </label>
-            <input
-              type="password"
-              required
-              value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
-              className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20"
-            />
-          </div>
-
-          {error && (
-            <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>
+    <Modal titulo="Cambiar contraseña" onCerrar={cerrar} ancho="sm:max-w-sm">
+      <form onSubmit={guardar} className="space-y-4">
+        <Campo label="Contraseña actual">
+          <input type="password" required value={actual} onChange={(e) => setActual(e.target.value)} className={inputClass} />
+        </Campo>
+        <Campo label="Nueva contraseña">
+          <input
+            type="password"
+            required
+            minLength={PASSWORD_MIN}
+            value={nueva}
+            onChange={(e) => setNueva(e.target.value)}
+            className={inputClass}
+          />
+          {nivel && (
+            <span className="mt-2 block">
+              <span className="block h-1.5 w-full overflow-hidden rounded-full bg-stone-100">
+                <span className={`block h-full rounded-full transition-all ${nivel.barra}`} />
+              </span>
+              <span className="mt-1 block text-xs text-stone-500">{nivel.texto}</span>
+            </span>
           )}
+        </Campo>
+        <Campo label="Confirmar nueva contraseña">
+          <input
+            type="password"
+            required
+            value={confirmacion}
+            onChange={(e) => setConfirmacion(e.target.value)}
+            className={inputClass}
+          />
+        </Campo>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-lg bg-huellitas-primary px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-huellitas-primary-dark disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {loading ? "Guardando..." : "Guardar cambios"}
-          </button>
-        </form>
-      </div>
-    </div>
+        {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
+
+        <button
+          type="submit"
+          disabled={guardando}
+          className="w-full rounded-lg bg-huellitas-primary px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-huellitas-primary-dark disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {guardando ? "Guardando..." : "Guardar cambios"}
+        </button>
+      </form>
+    </Modal>
   );
 }

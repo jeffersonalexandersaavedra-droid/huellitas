@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { estudianteActual, matriculaVigente } from "@/lib/consultas";
+import { estudianteActual, matriculaVigente, areasPorNivel } from "@/lib/consultas";
 import { enlacesDeArchivos } from "@/lib/emision";
 import PadreDashboard from "@/components/PadreDashboard";
 import AvisoVacio from "@/components/AvisoVacio";
@@ -37,6 +37,7 @@ export default async function PadrePage() {
     { data: vinculos },
     { data: docentes },
     { data: comprobantes },
+    areas,
   ] = await Promise.all([
     supabase
       .from("cuotas")
@@ -45,9 +46,8 @@ export default async function PadrePage() {
       .order("mes", { ascending: true }),
     supabase
       .from("notas_curso")
-      .select("id, curso, bimestre, nota, comentario")
-      .eq("matricula_id", matricula.id)
-      .order("bimestre", { ascending: true }),
+      .select("curso, competencia, bimestre, nota, conclusion")
+      .eq("matricula_id", matricula.id),
     supabase
       .from("observaciones_estudiante")
       .select("id, bimestre, texto")
@@ -64,6 +64,7 @@ export default async function PadrePage() {
       .select("id, tipo, serie, numero, fecha_emision, total, estado, items, enlace_pdf, archivo_path")
       .eq("matricula_id", matricula.id)
       .order("fecha_emision", { ascending: false }),
+    areasPorNivel(supabase),
   ]);
   const enlaces = await enlacesDeArchivos(comprobantes ?? []);
 
@@ -72,6 +73,7 @@ export default async function PadrePage() {
       estudiante={estudiante}
       matricula={matricula}
       cuotas={cuotas ?? []}
+      areas={areas[matricula.aulas?.nivel] ?? []}
       notas={notas ?? []}
       observaciones={observaciones ?? []}
       apoderados={(vinculos ?? []).map((v) => v.apoderados).filter(Boolean)}

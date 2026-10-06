@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Search, Plus, Trash2, X, CheckCircle2, AlertTriangle } from "lucide-react";
 import Campo from "@/components/Campo";
+import Modal from "@/components/Modal";
 import { inputClass } from "@/lib/ui";
 import { hoyISO } from "@/lib/fecha";
 import { formatSoles } from "@/lib/cuentas";
@@ -386,25 +387,9 @@ export default function FormularioComprobante({
 // El mismo formulario en una ventana (pagos por facturar y caja).
 export function ModalComprobante({ titulo, subtitulo, onCerrar, ...props }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-huellitas-ink/50 sm:items-center sm:p-4">
-      <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-2xl bg-white p-5 shadow-lg sm:rounded-2xl sm:p-6">
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h3 className="font-display text-lg font-semibold text-huellitas-primary">{titulo}</h3>
-            {subtitulo && <p className="text-sm text-stone-500">{subtitulo}</p>}
-          </div>
-          <button
-            type="button"
-            onClick={onCerrar}
-            aria-label="Cerrar"
-            className="text-stone-400 hover:text-stone-600"
-          >
-            <X className="h-5 w-5" strokeWidth={2} />
-          </button>
-        </div>
-        <FormularioComprobante {...props} onCancelar={onCerrar} />
-      </div>
-    </div>
+    <Modal titulo={titulo} subtitulo={subtitulo} onCerrar={onCerrar} ancho="sm:max-w-2xl">
+      <FormularioComprobante {...props} onCancelar={onCerrar} />
+    </Modal>
   );
 }
 

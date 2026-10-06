@@ -1,19 +1,23 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { BookOpen } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { BIMESTRES } from "@/lib/cursos";
+import { bimestreActualPorMes } from "@/lib/bimestres";
 import { registroDelAula } from "@/lib/consultas";
-import ExportarExcelButton from "@/components/ExportarExcelButton";
-import { controlClass } from "@/lib/ui";
-import { hojaDeNotas } from "@/lib/excel";
+import AvisoVacio from "@/components/AvisoVacio";
+import SelectorRegistro from "@/components/SelectorRegistro";
+import TablaCompetencias from "@/components/TablaCompetencias";
+import DescargasRegistro from "@/components/DescargasRegistro";
 
-export default function NotasAdminPanel({ aulas, anio }) {
+// Consulta de notas por aula (solo lectura): lo que registraron los
+// docentes, por área y competencia, con las mismas descargas del docente.
+export default function NotasAdminPanel({ aulas, anio, areasPorNivel }) {
   const supabase = createClient();
   const [aulaId, setAulaId] = useState(aulas[0]?.id ?? "");
-  const [bimestre, setBimestre] = useState(1);
-  const [filas, setFilas] = useState([]);
-  const [cursos, setCursos] = useState([]);
+  const [bimestre, setBimestre] = useState(() => bimestreActualPorMes(new Date().getMonth() + 1));
+  const [areaNombre, setAreaNombre] = useState("");
+  const [registro, setRegistro] = useState({ estudiantes: [], notas: {}, observaciones: {}, cursosConNotas: [] });
   const [cargando, setCargando] = useState(false);
 
   useEffect(() => {
@@ -22,17 +26,9 @@ export default function NotasAdminPanel({ aulas, anio }) {
 
     async function cargar() {
       setCargando(true);
-      const registro = await registroDelAula(supabase, { aulaId, bimestre });
+      const datos = await registroDelAula(supabase, { aulaId, bimestre });
       if (cancelado) return;
-      setCursos(registro.cursos);
-      setFilas(
-        registro.estudiantes.map((e) => ({
-          nombre: e.nombre,
-          dni: e.dni,
-          notas: registro.notas[e.matriculaId] ?? {},
-          observacion: registro.observaciones[e.matriculaId] ?? "",
-        }))
-      );
+      setRegistro(datos);
       setCargando(false);
     }
 
@@ -43,89 +39,60 @@ export default function NotasAdminPanel({ aulas, anio }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aulaId, bimestre]);
 
-  const aulaNombre = aulas.find((a) => a.id === aulaId)?.nombre ?? "aula";
-
-  const hoja = useMemo(
+  const aula = aulas.find((a) => a.id === aulaId);
+  // Áreas activas del nivel y las desactivadas que aún tienen notas.
+  const areas = useMemo(
     () =>
-      hojaDeNotas({
-        titulo: "REGISTRO DE NOTAS",
-        aula: aulaNombre,
-        bimestre,
-        anio,
-        cursos,
-        filas,
-      }),
-    [aulaNombre, bimestre, anio, cursos, filas]
+      (areasPorNivel[aula?.nivel] ?? []).filter((a) => a.activo || registro.cursosConNotas.includes(a.nombre)),
+    [areasPorNivel, aula?.nivel, registro.cursosConNotas]
   );
+  const area = areas.find((a) => a.nombre === areaNombre) ?? areas[0];
+
+  if (aulas.length === 0) {
+    return <AvisoVacio icono={BookOpen}>No hay aulas en el año escolar activo.</AvisoVacio>;
+  }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <select value={aulaId} onChange={(e) => setAulaId(e.target.value)} className={controlClass}>
-          {aulas.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.nombre}
-            </option>
-          ))}
-        </select>
-        <select
-          value={bimestre}
-          onChange={(e) => setBimestre(Number(e.target.value))}
-          className={controlClass}
-        >
-          {BIMESTRES.map((b) => (
-            <option key={b} value={b}>
-              Bimestre {b}
-            </option>
-          ))}
-        </select>
-        <div className="ml-auto">
-          <ExportarExcelButton archivo={`notas_${aulaNombre}_bim${bimestre}`} hoja={hoja} />
-        </div>
-      </div>
+    <div className="space-y-6">
+      <SelectorRegistro
+        aulas={aulas}
+        aulaId={aulaId}
+        onAula={setAulaId}
+        bimestre={bimestre}
+        onBimestre={setBimestre}
+        areas={areas}
+        area={area}
+        onArea={setAreaNombre}
+      />
 
-      <div className="overflow-x-auto rounded-xl border border-stone-200 bg-white">
+      <div className="rounded-xl bg-white p-3 shadow-sm sm:p-6">
         {cargando ? (
-          <p className="py-10 text-center text-sm text-stone-400">Cargando...</p>
-        ) : filas.length === 0 ? (
-          <p className="py-10 text-center text-sm text-stone-400">
-            No hay estudiantes en esta aula.
+          <p className="py-8 text-center text-sm text-stone-400">Cargando...</p>
+        ) : registro.estudiantes.length === 0 ? (
+          <p className="py-8 text-center text-sm text-stone-400">No hay estudiantes matriculados en esta aula.</p>
+        ) : !area ? (
+          <p className="py-8 text-center text-sm text-stone-400">
+            Este nivel no tiene áreas con competencias. Agrégalas en Configuración › Cursos.
           </p>
         ) : (
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-stone-100 text-xs uppercase tracking-wide text-stone-400">
-                <th className="px-4 py-3 font-medium">Estudiante</th>
-                {cursos.map((c) => (
-                  <th key={c} className="px-3 py-3 font-medium">
-                    {c}
-                  </th>
-                ))}
-                <th className="px-4 py-3 font-medium">Observaciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filas.map((f, i) => (
-                <tr key={i} className="border-b border-stone-50 last:border-0">
-                  <td className="px-4 py-3 text-huellitas-ink">
-                    {f.nombre}
-                    <span className="ml-1 text-xs text-stone-400">({f.dni})</span>
-                  </td>
-                  {cursos.map((c) => (
-                    <td key={c} className="px-3 py-3 font-medium text-huellitas-primary">
-                      {f.notas[c] ?? "—"}
-                    </td>
-                  ))}
-                  <td className="px-4 py-3 text-stone-500">{f.observacion || "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-        {!cargando && filas.length > 0 && cursos.length === 0 && (
-          <p className="px-4 pb-4 text-sm text-stone-400">
-            Aún no hay notas registradas para este bimestre.
-          </p>
+          <>
+            <h2 className="font-display text-lg font-semibold text-huellitas-primary">{area.nombre}</h2>
+            <div className="mt-3">
+              <TablaCompetencias
+                area={area}
+                estudiantes={registro.estudiantes}
+                notas={registro.notas}
+                observaciones={registro.observaciones}
+              />
+            </div>
+            <div className="mt-6 border-t border-stone-100 pt-5">
+              <DescargasRegistro
+                aula={aula}
+                datosRegistro={() => ({ anio, bimestre, aula, areas, ...registro })}
+                cargarRegistro={async (b) => ({ areas, ...(await registroDelAula(supabase, { aulaId, bimestre: b })) })}
+              />
+            </div>
+          </>
         )}
       </div>
     </div>

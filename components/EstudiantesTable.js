@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Search, Plus, Upload } from "lucide-react";
 import EstadoCuentaBadge from "@/components/EstadoCuentaBadge";
+import { coincide } from "@/lib/ui";
 
 export default function EstudiantesTable({ estudiantes }) {
   const router = useRouter();
@@ -23,21 +24,17 @@ export default function EstudiantesTable({ estudiantes }) {
     return Array.from(nombres).sort();
   }, [estudiantes, nivel]);
 
-  const filtrados = useMemo(() => {
-    const term = busqueda.trim().toLowerCase();
-    return estudiantes.filter((e) => {
-      if (nivel !== "todos" && e.nivel !== nivel) return false;
-      if (aula !== "todas" && e.aula !== aula) return false;
-      if (estadoCuenta !== "todos" && e.estadoCuenta !== estadoCuenta) return false;
-      if (
-        term &&
-        !`${e.nombres} ${e.apellidos} ${e.dni}`.toLowerCase().includes(term)
-      ) {
-        return false;
-      }
-      return true;
-    });
-  }, [estudiantes, busqueda, nivel, aula, estadoCuenta]);
+  const filtrados = useMemo(
+    () =>
+      estudiantes.filter(
+        (e) =>
+          (nivel === "todos" || e.nivel === nivel) &&
+          (aula === "todas" || e.aula === aula) &&
+          (estadoCuenta === "todos" || e.estadoCuenta === estadoCuenta) &&
+          coincide(busqueda, `${e.nombres} ${e.apellidos}`, e.dni)
+      ),
+    [estudiantes, busqueda, nivel, aula, estadoCuenta]
+  );
 
   return (
     <div>

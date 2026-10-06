@@ -118,7 +118,7 @@ export default function AsistenciaAdmin({ aulas, anio }) {
     const base = [
       { titulo: "Aula", ancho: 16 },
       { titulo: "Estudiante", ancho: 32 },
-      { titulo: "DNI", ancho: 11, tipo: "centro" },
+      { titulo: "DNI", ancho: 11, tipo: "codigo" },
     ];
     const columnasTotales = CLAVES_ASISTENCIA.map((k) => ({
       titulo: ESTADOS_ASISTENCIA[k].label,
@@ -160,7 +160,6 @@ export default function AsistenciaAdmin({ aulas, anio }) {
         subtitulos: [`${titulo} · ${aula}`],
         columnas,
         filas,
-        fijarColumnas: 3,
         pie: [CLAVES_ASISTENCIA.map((k) => `${ESTADOS_ASISTENCIA[k].corto} = ${ESTADOS_ASISTENCIA[k].label}`).join(" · ")],
       },
     ]);

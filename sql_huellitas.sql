@@ -1092,3 +1092,28 @@ begin
          for each row execute function public.registrar_auditoria()', t);
   end loop;
 end $$;
+
+-- ============================================================
+-- NOTAS POR COMPETENCIA (formato SIAGIE)  (agregado)
+-- Cada curso (área) trae sus competencias del Currículo Nacional y el
+-- docente califica cada una: nivel de logro (AD/A/B/C) + conclusión
+-- descriptiva opcional (10 a 500 caracteres, regla del SIAGIE).
+-- ============================================================
+
+alter table public.cursos add column if not exists competencias text[] not null default '{}';
+-- (las competencias de Inicial y Primaria se cargaron con un UPDATE por
+-- área; se editan desde Configuración › Cursos)
+
+alter table public.notas_curso add column competencia smallint;
+update public.notas_curso set competencia = 1 where competencia is null;
+alter table public.notas_curso rename column comentario to conclusion;
+alter table public.notas_curso
+  alter column competencia set not null,
+  alter column matricula_id set not null,
+  alter column bimestre set not null,
+  add constraint notas_curso_competencia_check check (competencia >= 1),
+  add constraint notas_curso_nota_check check (nota in ('AD', 'A', 'B', 'C')),
+  add constraint notas_curso_conclusion_check
+    check (conclusion is null or char_length(conclusion) between 10 and 500),
+  drop constraint notas_curso_matricula_id_curso_bimestre_key,
+  add constraint notas_curso_unica unique (matricula_id, curso, competencia, bimestre);

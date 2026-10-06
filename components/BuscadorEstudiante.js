@@ -3,20 +3,20 @@
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import Campo from "@/components/Campo";
-import { inputClass } from "@/lib/ui";
+import { inputClass, coincide } from "@/lib/ui";
 
 // Buscador por nombre o DNI entre los estudiantes matriculados (caja y
 // facturación). estudiantes: [{ matriculaId, nombre, dni, aula }]
 export default function BuscadorEstudiante({ estudiantes, onElegir, label = "Buscar estudiante (nombre o DNI)" }) {
   const [busqueda, setBusqueda] = useState("");
 
-  const coincidencias = useMemo(() => {
-    const q = busqueda.trim().toLowerCase();
-    if (q.length < 2) return [];
-    return estudiantes
-      .filter((e) => e.nombre.toLowerCase().includes(q) || e.dni.includes(q))
-      .slice(0, 8);
-  }, [busqueda, estudiantes]);
+  const coincidencias = useMemo(
+    () =>
+      busqueda.trim().length < 2
+        ? []
+        : estudiantes.filter((e) => coincide(busqueda, e.nombre, e.dni)).slice(0, 8),
+    [busqueda, estudiantes]
+  );
 
   return (
     <div>

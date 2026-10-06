@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { MESES, formatFecha } from "@/lib/fecha";
 import { METODOS_PAGO } from "@/lib/pagoInfo";
 import { formatSoles } from "@/lib/cuentas";
+import AvisoVacio from "@/components/AvisoVacio";
 
 // Vouchers enviados por los padres para validar. Cada pago trae
 // `voucherUrl`: enlace temporal al archivo (el depósito es privado).
@@ -60,14 +61,7 @@ export default function PagosBandeja({ pagosIniciales, usuarioId }) {
   }
 
   if (pagos.length === 0) {
-    return (
-      <div className="rounded-xl bg-white p-10 text-center shadow-sm">
-        <Inbox className="mx-auto h-8 w-8 text-stone-300" strokeWidth={2} />
-        <p className="mt-3 text-sm text-stone-500">
-          No hay vouchers pendientes de validar.
-        </p>
-      </div>
-    );
+    return <AvisoVacio icono={Inbox}>No hay vouchers pendientes de validar.</AvisoVacio>;
   }
 
   return (

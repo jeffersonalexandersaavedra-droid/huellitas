@@ -13,3 +13,11 @@
   --color-huellitas-cream: #faf7f5;
   --color-huellitas-ink: #2a1f33;
 }
+
+/* Documentos imprimibles (boleta preventiva, comprobantes, reclamaciones). */
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+}

@@ -51,7 +51,7 @@ export default function PerfilEstudiante({ estudiante, aula, anio, listaUtilesUr
           <FileText className="h-6 w-6 shrink-0 text-huellitas-primary" strokeWidth={2} />
           <span>
             <span className="block text-sm font-semibold text-huellitas-ink">Boleta preventiva</span>
-            <span className="block text-xs text-stone-500">Notas del año para descargar o imprimir</span>
+            <span className="block text-xs text-stone-500">Vista previa del Informe de progreso para imprimir</span>
           </span>
         </Link>
         {listaUtilesUrl ? (

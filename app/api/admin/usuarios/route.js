@@ -3,9 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { usuarioConRol, respuestaError, noAutorizado } from "@/lib/api";
 import { crearCuentaAcceso } from "@/lib/accesos";
 import { EMAIL_REGEX, MENSAJE_PASSWORD, passwordValida } from "@/lib/validacion";
-
-// Cuentas del personal administrativo que se gestionan desde Configuración.
-const ROLES_PERSONAL = ["admin", "secretaria"];
+import { ROLES_PERSONAL } from "@/lib/roles";
 
 // Crear un administrador o una secretaria. body: { nombre, email, password, rol }
 export async function POST(request) {
