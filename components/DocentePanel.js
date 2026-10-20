@@ -11,6 +11,86 @@ import SelectorRegistro from "@/components/SelectorRegistro";
 import TablaCompetencias from "@/components/TablaCompetencias";
 import DescargasRegistro from "@/components/DescargasRegistro";
 
+// Áreas con competencias que el docente dicta en el aula y las asignadas
+// que aún no tienen competencias cargadas.
+function areasDelAula(asignaciones, areasPorNivel, aulaId, nivel) {
+  const asignados = asignaciones.filter((a) => a.aula_id === aulaId).map((a) => a.curso);
+  const enAula = new Set(asignados);
+  const areas = (areasPorNivel[nivel] ?? []).filter((a) => enAula.has(a.nombre));
+  const conCompetencias = new Set(areas.map((a) => a.nombre));
+  return { areas, sinCompetencias: asignados.filter((c) => !conCompetencias.has(c)).sort() };
+}
+
+// Qué cambió una competencia respecto de lo guardado: nota a guardar, nota a
+// borrar, un error o nada.
+function cambioDeCompetencia(actual, antes, donde) {
+  const conclusion = actual.conclusion.trim();
+  if (actual.nota === antes.nota && conclusion === antes.conclusion.trim()) return null;
+  if (!actual.nota && conclusion) return { error: `Falta el nivel de logro en ${donde}.` };
+  if (!conclusionValida(conclusion)) {
+    return { error: `La conclusión de ${donde} debe tener entre ${CONCLUSION_MIN} y ${CONCLUSION_MAX} caracteres.` };
+  }
+  return actual.nota ? { nota: actual.nota, conclusion: conclusion || null } : { borrar: true };
+}
+
+// Cambios pendientes respecto de lo guardado, ya validados.
+function calcularCambios(registro, original, areas) {
+  const cambios = { notas: [], borrar: [], observaciones: [], errores: [] };
+  for (const e of registro.estudiantes) {
+    const mId = e.matriculaId;
+    for (const a of areas) {
+      a.competencias.forEach((_, i) => {
+        const clave = claveNota(a.nombre, i + 1);
+        const cambio = cambioDeCompetencia(
+          registro.notas[mId]?.[clave] ?? NOTA_VACIA,
+          original.notas[mId]?.[clave] ?? NOTA_VACIA,
+          `C${i + 1} de ${a.nombre} (${e.corto})`
+        );
+        const fila = { matricula_id: mId, curso: a.nombre, competencia: i + 1 };
+        if (cambio?.error) cambios.errores.push(cambio.error);
+        else if (cambio?.borrar) cambios.borrar.push(fila);
+        else if (cambio) cambios.notas.push({ ...fila, nota: cambio.nota, conclusion: cambio.conclusion });
+      });
+    }
+    const texto = (registro.observaciones[mId] ?? "").trim();
+    if (texto !== (original.observaciones[mId] ?? "").trim()) cambios.observaciones.push({ matricula_id: mId, texto });
+  }
+  return { ...cambios, total: cambios.notas.length + cambios.borrar.length + cambios.observaciones.length };
+}
+
+// Consultas que guardan los cambios del bimestre.
+function operacionesDeGuardado(supabase, cambios, { bimestre, docenteId, autor }) {
+  const operaciones = [
+    ...cambios.borrar.map((b) => supabase.from("notas_curso").delete().match({ ...b, bimestre })),
+    ...cambios.observaciones.map(({ matricula_id, texto }) => {
+      const clave = { matricula_id, docente_id: docenteId, bimestre };
+      return texto
+        ? supabase
+            .from("observaciones_estudiante")
+            .upsert({ ...clave, texto, registrado_por: autor }, { onConflict: "matricula_id,docente_id,bimestre" })
+        : supabase.from("observaciones_estudiante").delete().match(clave);
+    }),
+  ];
+  if (cambios.notas.length) {
+    operaciones.push(
+      supabase
+        .from("notas_curso")
+        .upsert(
+          cambios.notas.map((n) => ({ ...n, bimestre, registrado_por: autor })),
+          { onConflict: "matricula_id,curso,competencia,bimestre" }
+        )
+    );
+  }
+  return operaciones;
+}
+
+function avisoDelRegistro({ cargando, estudiantes, area }) {
+  if (cargando) return "Cargando...";
+  if (!estudiantes.length) return "No hay estudiantes matriculados en esta aula.";
+  if (!area) return "No tienes áreas con competencias para calificar en esta aula.";
+  return null;
+}
+
 // Registro de notas del docente por competencias: elige aula, bimestre y
 // área; pone el nivel de logro de cada competencia y, si quiere, la
 // conclusión descriptiva y el comentario general del estudiante.
@@ -23,16 +103,10 @@ export default function DocentePanel({ docenteId, docente, anio, asignaciones, a
   const [areaNombre, setAreaNombre] = useState("");
 
   const aula = aulas.find((a) => a.id === aulaId);
-  // Áreas con competencias que el docente dicta en el aula.
-  const { areas, sinCompetencias } = useMemo(() => {
-    const asignados = asignaciones.filter((a) => a.aula_id === aulaId).map((a) => a.curso);
-    const enAula = new Set(asignados);
-    const delNivel = (areasPorNivel[aula?.nivel] ?? []).filter((a) => enAula.has(a.nombre));
-    return {
-      areas: delNivel,
-      sinCompetencias: asignados.filter((c) => !delNivel.some((a) => a.nombre === c)).sort(),
-    };
-  }, [asignaciones, areasPorNivel, aulaId, aula?.nivel]);
+  const { areas, sinCompetencias } = useMemo(
+    () => areasDelAula(asignaciones, areasPorNivel, aulaId, aula?.nivel),
+    [asignaciones, areasPorNivel, aulaId, aula?.nivel]
+  );
   const area = areas.find((a) => a.nombre === areaNombre) ?? areas[0];
 
   const [registro, setRegistro] = useState({ estudiantes: [], notas: {}, observaciones: {} });
@@ -62,42 +136,10 @@ export default function DocentePanel({ docenteId, docente, anio, asignaciones, a
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aulaId, bimestre]);
 
-  // Cambios pendientes respecto de lo guardado, ya validados.
-  const cambios = useMemo(() => {
-    const notas = [];
-    const borrar = [];
-    const observaciones = [];
-    const errores = [];
-
-    for (const e of registro.estudiantes) {
-      const mId = e.matriculaId;
-      for (const a of areas) {
-        a.competencias.forEach((_, i) => {
-          const clave = claveNota(a.nombre, i + 1);
-          const actual = registro.notas[mId]?.[clave] ?? NOTA_VACIA;
-          const antes = original.notas[mId]?.[clave] ?? NOTA_VACIA;
-          const conclusion = actual.conclusion.trim();
-          if (actual.nota === antes.nota && conclusion === antes.conclusion.trim()) return;
-
-          const donde = `C${i + 1} de ${a.nombre} (${e.corto})`;
-          if (!actual.nota && conclusion) {
-            errores.push(`Falta el nivel de logro en ${donde}.`);
-          } else if (!conclusionValida(conclusion)) {
-            errores.push(`La conclusión de ${donde} debe tener entre ${CONCLUSION_MIN} y ${CONCLUSION_MAX} caracteres.`);
-          } else if (actual.nota) {
-            notas.push({ matricula_id: mId, curso: a.nombre, competencia: i + 1, nota: actual.nota, conclusion: conclusion || null });
-          } else {
-            borrar.push({ matricula_id: mId, curso: a.nombre, competencia: i + 1 });
-          }
-        });
-      }
-      const texto = (registro.observaciones[mId] ?? "").trim();
-      if (texto !== (original.observaciones[mId] ?? "").trim()) observaciones.push({ matricula_id: mId, texto });
-    }
-    return { notas, borrar, observaciones, errores, total: notas.length + borrar.length + observaciones.length };
-  }, [registro, original, areas]);
+  const cambios = useMemo(() => calcularCambios(registro, original, areas), [registro, original, areas]);
 
   const pendientes = cambios.total + cambios.errores.length;
+  const aviso = avisoDelRegistro({ cargando, estudiantes: registro.estudiantes, area });
 
   function confirmarSalida(cambiar) {
     return (valor) => {
@@ -124,44 +166,16 @@ export default function DocentePanel({ docenteId, docente, anio, asignaciones, a
   }
 
   async function guardar() {
-    if (cambios.errores.length) {
-      setMensaje({ ok: false, texto: cambios.errores.join(" ") });
-      return;
-    }
-    if (!cambios.total) {
-      setMensaje({ ok: true, texto: "No había cambios por guardar." });
-      return;
-    }
+    if (guardando) return;
+    if (cambios.errores.length) return setMensaje({ ok: false, texto: cambios.errores.join(" ") });
+    if (!cambios.total) return setMensaje({ ok: true, texto: "No había cambios por guardar." });
     setGuardando(true);
     setMensaje(null);
     try {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-
-      const autor = user?.id ?? null;
-
-      const operaciones = [
-        ...cambios.borrar.map((b) => supabase.from("notas_curso").delete().match({ ...b, bimestre })),
-        ...cambios.observaciones.map(({ matricula_id, texto }) => {
-          const clave = { matricula_id, docente_id: docenteId, bimestre };
-          return texto
-            ? supabase
-                .from("observaciones_estudiante")
-                .upsert({ ...clave, texto, registrado_por: autor }, { onConflict: "matricula_id,docente_id,bimestre" })
-            : supabase.from("observaciones_estudiante").delete().match(clave);
-        }),
-      ];
-      if (cambios.notas.length) {
-        operaciones.push(
-          supabase
-            .from("notas_curso")
-            .upsert(
-              cambios.notas.map((n) => ({ ...n, bimestre, registrado_por: autor })),
-              { onConflict: "matricula_id,curso,competencia,bimestre" }
-            )
-        );
-      }
+      const operaciones = operacionesDeGuardado(supabase, cambios, { bimestre, docenteId, autor: user?.id ?? null });
       const fallo = (await Promise.all(operaciones)).find((r) => r.error);
       if (fallo) throw fallo.error;
 
@@ -194,14 +208,8 @@ export default function DocentePanel({ docenteId, docente, anio, asignaciones, a
       />
 
       <div className="rounded-xl bg-white p-3 shadow-sm sm:p-6">
-        {cargando ? (
-          <p className="py-8 text-center text-sm text-stone-400">Cargando...</p>
-        ) : registro.estudiantes.length === 0 ? (
-          <p className="py-8 text-center text-sm text-stone-400">No hay estudiantes matriculados en esta aula.</p>
-        ) : !area ? (
-          <p className="py-8 text-center text-sm text-stone-400">
-            No tienes áreas con competencias para calificar en esta aula.
-          </p>
+        {aviso ? (
+          <p className="py-8 text-center text-sm text-stone-400">{aviso}</p>
         ) : (
           <>
             <h2 className="font-display text-lg font-semibold text-huellitas-primary">{area.nombre}</h2>

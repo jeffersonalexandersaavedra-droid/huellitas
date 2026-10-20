@@ -15,163 +15,141 @@ import { obtenerAnioActivo } from "@/lib/consultas";
 
 export const metadata = { title: "Dashboard" };
 
-export default async function DashboardPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const esAdmin = user?.app_metadata?.role === "admin";
+const COBRADOS = new Set(["pagado", "verificado"]);
 
-  const anioActivo = await obtenerAnioActivo(supabase);
-  const anioId = anioActivo?.id ?? "";
-
+// Matrículas activas del año con sus cuotas y pagos.
+async function datosDelAnio(supabase, anioId) {
   const { data: matriculas } = await supabase
     .from("matriculas")
     .select("id, estado, aulas(nombre, nivel)")
-    .eq("anio_escolar_id", anioId)
+    .eq("anio_escolar_id", anioId ?? "")
     .eq("estado", "activa");
+  const ids = (matriculas ?? []).map((m) => m.id);
+  if (!ids.length) return { matriculas: [], cuotas: [], pagos: [] };
 
-  const matriculaIds = (matriculas ?? []).map((m) => m.id);
+  const [{ data: cuotas }, { data: pagos }] = await Promise.all([
+    supabase.from("cuotas").select("matricula_id, monto, estado, fecha_vencimiento").in("matricula_id", ids),
+    supabase.from("pagos").select("monto, estado, fecha_pago").in("matricula_id", ids),
+  ]);
+  return { matriculas, cuotas: cuotas ?? [], pagos: pagos ?? [] };
+}
 
-  const { data: cuotas } = matriculaIds.length
-    ? await supabase
-        .from("cuotas")
-        .select("matricula_id, monto, estado, fecha_vencimiento")
-        .in("matricula_id", matriculaIds)
-    : { data: [] };
+async function incidenciasSinLeer(supabase) {
+  const { count } = await supabase
+    .from("incidencias")
+    .select("id", { count: "exact", head: true })
+    .eq("leida", false);
+  return count ?? 0;
+}
 
-  const { data: pagos } = matriculaIds.length
-    ? await supabase
-        .from("pagos")
-        .select("monto, estado, fecha_pago")
-        .in("matricula_id", matriculaIds)
-    : { data: [] };
-
-  // --- KPIs ---
-  const total = (matriculas ?? []).length;
-  const inicial = (matriculas ?? []).filter((m) => m.aulas?.nivel === "inicial").length;
-  const primaria = (matriculas ?? []).filter((m) => m.aulas?.nivel === "primaria").length;
-
-  const cuotasPorMatricula = agruparPorMatricula(cuotas ?? []);
-
-  let conDeuda = 0;
-  for (const mId of matriculaIds) {
-    if (estadoCuenta(cuotasPorMatricula.get(mId) ?? []) === "con-deuda") conDeuda += 1;
-  }
-
-  const deudaTotal = montoVencido(cuotas ?? []);
-
-  const ahora = new Date();
-  const ingresosMes = (pagos ?? [])
-    .filter((p) => {
-      if (p.estado !== "pagado" && p.estado !== "verificado") return false;
-      if (!p.fecha_pago) return false;
-      const f = new Date(p.fecha_pago);
-      return f.getMonth() === ahora.getMonth() && f.getFullYear() === ahora.getFullYear();
-    })
+function indicadores({ matriculas, cuotas, pagos }, ahora) {
+  const delNivel = (nivel) => matriculas.filter((m) => m.aulas?.nivel === nivel).length;
+  const porMatricula = agruparPorMatricula(cuotas);
+  const conDeuda = matriculas.filter((m) => estadoCuenta(porMatricula.get(m.id) ?? []) === "con-deuda").length;
+  const delMes = (fecha) => {
+    const f = new Date(fecha);
+    return f.getMonth() === ahora.getMonth() && f.getFullYear() === ahora.getFullYear();
+  };
+  const ingresosMes = pagos
+    .filter((p) => COBRADOS.has(p.estado) && p.fecha_pago && delMes(p.fecha_pago))
     .reduce((s, p) => s + Number(p.monto || 0), 0);
 
-  const porValidar = (pagos ?? []).filter((p) => p.estado === "validando").length;
+  return [
+    { label: "Estudiantes matriculados", valor: matriculas.length, icon: Users, color: "text-huellitas-primary" },
+    { label: "Con deuda vencida", valor: conDeuda, icon: AlertTriangle, color: "text-rose-600" },
+    { label: `Ingresos de ${MESES[ahora.getMonth() + 1]}`, valor: formatSoles(ingresosMes), icon: TrendingUp, color: "text-emerald-600" },
+    { label: "Deuda vencida acumulada", valor: formatSoles(montoVencido(cuotas)), icon: Wallet, color: "text-huellitas-accent-dark" },
+    {
+      label: "Vouchers por validar",
+      valor: pagos.filter((p) => p.estado === "validando").length,
+      icon: Inbox,
+      color: "text-sky-600",
+      href: "/admin/pagos",
+    },
+    { label: "Niveles", valor: `${delNivel("inicial")} inicial · ${delNivel("primaria")} primaria`, icon: GraduationCap, color: "text-huellitas-primary" },
+  ];
+}
 
-  // Distribución por aula
+function TarjetaKpi({ label, valor, icon: Icon, color, href }) {
+  const contenido = (
+    <div className="flex items-start justify-between rounded-xl bg-white p-5 shadow-sm transition-shadow hover:shadow">
+      <div className="min-w-0">
+        <p className="text-sm text-stone-500">{label}</p>
+        <p className="mt-2 font-display text-2xl font-semibold text-huellitas-ink">{valor}</p>
+      </div>
+      <span className={`shrink-0 ${color}`}>
+        <Icon className="h-6 w-6" strokeWidth={2} />
+      </span>
+    </div>
+  );
+  return href ? <Link href={href}>{contenido}</Link> : contenido;
+}
+
+function EstudiantesPorAula({ matriculas }) {
   const porAula = new Map();
-  for (const m of matriculas ?? []) {
+  for (const m of matriculas) {
     const nombre = m.aulas?.nombre ?? "Sin aula";
     porAula.set(nombre, (porAula.get(nombre) ?? 0) + 1);
   }
-  const aulasOrden = [...porAula.entries()].sort((a, b) => b[1] - a[1]);
-  const maxAula = Math.max(1, ...aulasOrden.map(([, n]) => n));
+  const aulas = [...porAula.entries()].sort((a, b) => b[1] - a[1]);
+  const maximo = Math.max(1, ...aulas.map(([, n]) => n));
 
-  const kpis = [
-    { label: "Estudiantes matriculados", valor: total, icon: Users, color: "text-huellitas-primary" },
-    { label: "Con deuda vencida", valor: conDeuda, icon: AlertTriangle, color: "text-rose-600" },
-    { label: `Ingresos de ${MESES[ahora.getMonth() + 1]}`, valor: formatSoles(ingresosMes), icon: TrendingUp, color: "text-emerald-600" },
-    { label: "Deuda vencida acumulada", valor: formatSoles(deudaTotal), icon: Wallet, color: "text-huellitas-accent-dark" },
-    { label: "Vouchers por validar", valor: porValidar, icon: Inbox, color: "text-sky-600", href: "/admin/pagos" },
-    { label: "Niveles", valor: `${inicial} inicial · ${primaria} primaria`, icon: GraduationCap, color: "text-huellitas-primary" },
-  ];
+  return (
+    <div className="rounded-xl bg-white p-6 shadow-sm">
+      <h2 className="font-display text-lg font-semibold text-huellitas-primary">Estudiantes por aula</h2>
+      {aulas.length === 0 ? (
+        <p className="mt-4 text-sm text-stone-400">Aún no hay estudiantes matriculados este año.</p>
+      ) : (
+        <div className="mt-4 space-y-3">
+          {aulas.map(([nombre, n]) => (
+            <div key={nombre} className="flex items-center gap-3">
+              <span className="w-28 shrink-0 text-sm text-stone-600">{nombre}</span>
+              <div className="h-3 flex-1 overflow-hidden rounded-full bg-huellitas-primary-light">
+                <div className="h-full rounded-full bg-huellitas-primary" style={{ width: `${(n / maximo) * 100}%` }} />
+              </div>
+              <span className="w-8 shrink-0 text-right text-sm font-medium text-huellitas-ink">{n}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
+export default async function DashboardPage() {
+  const supabase = await createClient();
+  const [
+    {
+      data: { user },
+    },
+    anioActivo,
+  ] = await Promise.all([supabase.auth.getUser(), obtenerAnioActivo(supabase)]);
   // Dirección ve además las incidencias que aún no ha leído.
-  if (esAdmin) {
-    const { count } = await supabase
-      .from("incidencias")
-      .select("id", { count: "exact", head: true })
-      .eq("leida", false);
-    kpis.push({
-      label: "Incidencias sin leer",
-      valor: count ?? 0,
-      icon: ShieldAlert,
-      color: "text-rose-600",
-      href: "/admin/incidencias",
-    });
+  const esAdmin = user?.app_metadata?.role === "admin";
+  const [datos, sinLeer] = await Promise.all([
+    datosDelAnio(supabase, anioActivo?.id),
+    esAdmin ? incidenciasSinLeer(supabase) : null,
+  ]);
+
+  const kpis = indicadores(datos, new Date());
+  if (sinLeer !== null) {
+    kpis.push({ label: "Incidencias sin leer", valor: sinLeer, icon: ShieldAlert, color: "text-rose-600", href: "/admin/incidencias" });
   }
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-display text-2xl font-semibold text-huellitas-ink">
-          Dashboard
-        </h1>
-        <p className="mt-1 text-sm text-stone-500">
-          Resumen del año escolar {anioActivo?.anio ?? ""}.
-        </p>
+        <h1 className="font-display text-2xl font-semibold text-huellitas-ink">Dashboard</h1>
+        <p className="mt-1 text-sm text-stone-500">Resumen del año escolar {anioActivo?.anio ?? ""}.</p>
       </div>
 
-      {/* KPIs */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {kpis.map((k) => {
-          const Icon = k.icon;
-          const contenido = (
-            <div className="flex items-start justify-between rounded-xl bg-white p-5 shadow-sm transition-shadow hover:shadow">
-              <div className="min-w-0">
-                <p className="text-sm text-stone-500">{k.label}</p>
-                <p className="mt-2 font-display text-2xl font-semibold text-huellitas-ink">
-                  {k.valor}
-                </p>
-              </div>
-              <span className={`shrink-0 ${k.color}`}>
-                <Icon className="h-6 w-6" strokeWidth={2} />
-              </span>
-            </div>
-          );
-          return k.href ? (
-            <Link key={k.label} href={k.href}>
-              {contenido}
-            </Link>
-          ) : (
-            <div key={k.label}>{contenido}</div>
-          );
-        })}
+        {kpis.map((k) => (
+          <TarjetaKpi key={k.label} {...k} />
+        ))}
       </div>
 
-      {/* Distribución por aula */}
-      <div className="rounded-xl bg-white p-6 shadow-sm">
-        <h2 className="font-display text-lg font-semibold text-huellitas-primary">
-          Estudiantes por aula
-        </h2>
-        {aulasOrden.length === 0 ? (
-          <p className="mt-4 text-sm text-stone-400">
-            Aún no hay estudiantes matriculados este año.
-          </p>
-        ) : (
-          <div className="mt-4 space-y-3">
-            {aulasOrden.map(([nombre, n]) => (
-              <div key={nombre} className="flex items-center gap-3">
-                <span className="w-28 shrink-0 text-sm text-stone-600">{nombre}</span>
-                <div className="h-3 flex-1 overflow-hidden rounded-full bg-huellitas-primary-light">
-                  <div
-                    className="h-full rounded-full bg-huellitas-primary"
-                    style={{ width: `${(n / maxAula) * 100}%` }}
-                  />
-                </div>
-                <span className="w-8 shrink-0 text-right text-sm font-medium text-huellitas-ink">
-                  {n}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      <EstudiantesPorAula matriculas={datos.matriculas} />
     </div>
   );
 }

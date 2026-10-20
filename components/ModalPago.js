@@ -19,6 +19,141 @@ const opcion = (activa) =>
     activa ? "border-huellitas-primary bg-huellitas-primary-light text-huellitas-primary" : "border-stone-200 text-stone-600"
   }`;
 
+const cuentaDe = (metodo, banco) =>
+  metodo === "yape"
+    ? { numero: YAPE.numero, titular: YAPE.titular }
+    : { numero: BANCOS[banco].cuenta, titular: BANCOS[banco].titular, banco: BANCOS[banco].label };
+
+function CuotasAPagar({ cuotas }) {
+  return (
+    <div className="rounded-xl border border-stone-200 p-4">
+      <p className="text-sm font-medium text-huellitas-ink">Estás pagando {cuotas.length} cuotas:</p>
+      <ul className="mt-2 space-y-1">
+        {cuotas.map((c) => (
+          <li key={c.id} className="flex justify-between text-sm text-stone-600">
+            <span>{c.concepto}</span>
+            <span>{formatSoles(c.monto)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// Paso 1: a dónde pagar (Yape o un banco), con el número para copiar.
+function DondePagar({ metodo, setMetodo, banco, setBanco, concepto, total }) {
+  const [copiado, setCopiado] = useState(false);
+  const cuenta = cuentaDe(metodo, banco);
+
+  function copiar() {
+    navigator.clipboard?.writeText(cuenta.numero.replace(/\s/g, ""));
+    setCopiado(true);
+    setTimeout(() => setCopiado(false), 2000);
+  }
+
+  return (
+    <div>
+      <p className="text-sm font-medium text-huellitas-ink">1. Realiza el pago</p>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        {METODOS.map(({ id, label, icono: Icono }) => (
+          <button key={id} type="button" aria-pressed={metodo === id} onClick={() => setMetodo(id)} className={opcion(metodo === id)}>
+            <Icono className="h-4 w-4" strokeWidth={2} />
+            {label}
+          </button>
+        ))}
+      </div>
+      {metodo === "transferencia" && (
+        <div className="mt-2 grid grid-cols-3 gap-2">
+          {Object.entries(BANCOS).map(([clave, b]) => (
+            <button key={clave} type="button" aria-pressed={banco === clave} onClick={() => setBanco(clave)} className={`${opcion(banco === clave)} text-xs`}>
+              {b.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-3 rounded-xl bg-huellitas-primary-light p-4">
+        {cuenta.banco && <p className="text-xs font-medium uppercase tracking-wide text-huellitas-primary/70">{cuenta.banco}</p>}
+        <p className="select-all font-display text-2xl font-semibold text-huellitas-primary">{cuenta.numero}</p>
+        <p className="mt-1 text-sm text-huellitas-ink/70">Titular: {cuenta.titular}</p>
+        <p className="mt-1 text-sm text-huellitas-ink/70">Concepto: {concepto}</p>
+        <p className="mt-2 font-display text-xl font-semibold text-huellitas-primary">{formatSoles(total)}</p>
+      </div>
+      <button
+        type="button"
+        onClick={copiar}
+        className="mt-3 inline-flex items-center gap-2 rounded-lg bg-huellitas-accent px-4 py-2 text-sm font-medium text-huellitas-ink transition-colors hover:bg-huellitas-accent-dark hover:text-white"
+      >
+        {copiado ? <Check className="h-4 w-4" strokeWidth={2} /> : <Copy className="h-4 w-4" strokeWidth={2} />}
+        {copiado ? "Copiado" : metodo === "yape" ? "Copiar número" : "Copiar número de cuenta"}
+      </button>
+    </div>
+  );
+}
+
+// Paso 2: el voucher (arrastrar o elegir; máximo 5 MB).
+function SubirVoucher({ voucher, setVoucher, onError }) {
+  function elegir(file) {
+    if (!file) return;
+    if (file.size > MAX_VOUCHER) return onError("El archivo supera los 5 MB.");
+    onError("");
+    setVoucher(file);
+  }
+
+  return (
+    <div>
+      <p className="text-sm font-medium text-huellitas-ink">2. Sube tu voucher</p>
+      {voucher ? (
+        <div className="mt-3 flex items-center justify-between rounded-lg border border-stone-200 p-3">
+          <span className="truncate text-sm text-stone-600">{voucher.name}</span>
+          <button type="button" onClick={() => setVoucher(null)} aria-label="Quitar voucher" className="text-stone-400 hover:text-rose-600">
+            <X className="h-4 w-4" strokeWidth={2} />
+          </button>
+        </div>
+      ) : (
+        <label
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            e.preventDefault();
+            elegir(e.dataTransfer.files?.[0]);
+          }}
+          className="mt-3 flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed border-stone-300 p-6 text-center transition-colors hover:border-huellitas-accent"
+        >
+          <Upload className="h-6 w-6 text-huellitas-accent" strokeWidth={2} />
+          <span className="text-sm text-stone-600">Arrastra tu voucher aquí o haz clic para seleccionar</span>
+          <span className="text-xs text-stone-400">JPG, PNG o PDF hasta 5 MB</span>
+          <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" onChange={(e) => elegir(e.target.files?.[0])} />
+        </label>
+      )}
+    </div>
+  );
+}
+
+// Sube el voucher y registra el pago "validando" con sus cuotas.
+async function registrarVoucher({ cuotas, matriculaId, voucher, datos }) {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Tu sesión expiró. Vuelve a iniciar sesión.");
+
+  const ids = cuotas.map((c) => c.id);
+  const unaCuota = ids.length === 1;
+  const ruta = `${user.id}/${unaCuota ? ids[0] : "total"}-${Date.now()}.${voucher.name.split(".").pop()}`;
+  const { error: errorSubida } = await supabase.storage.from("vouchers").upload(ruta, voucher);
+  if (errorSubida) throw new Error("No se pudo subir el voucher. Intenta de nuevo.");
+
+  const { error: errorPago } = await supabase.from("pagos").insert({
+    ...(unaCuota ? { cuota_id: ids[0] } : { cuota_id: null, cuotas_ids: ids }),
+    matricula_id: matriculaId,
+    voucher_url: ruta,
+    estado: "validando",
+    ...datos,
+  });
+  if (errorPago) throw new Error("No se pudo registrar el pago. Intenta de nuevo.");
+  await supabase.from("cuotas").update({ estado: "validando" }).in("id", ids);
+}
+
 // Pago con voucher desde el portal del padre (Yape/Plin o transferencia):
 // una cuota o "Pagar todo lo pendiente" (varias). Queda en "validando"
 // hasta que administración revisa el voucher en Pagos.
@@ -34,66 +169,31 @@ export default function ModalPago({ metodo: metodoInicial, cuotas, matriculaId, 
   const [monto, setMonto] = useState(String(total));
   const [pagadorIdx, setPagadorIdx] = useState("0");
   const [confirmado, setConfirmado] = useState(false);
-  const [copiado, setCopiado] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState("");
 
-  const cuenta =
-    metodo === "yape"
-      ? { numero: YAPE.numero, titular: YAPE.titular }
-      : { numero: BANCOS[banco].cuenta, titular: BANCOS[banco].titular, banco: BANCOS[banco].label };
   const puedeEnviar =
     Boolean(voucher) && numeroOperacion.replace(/\D/g, "").length >= 6 && Number(monto) > 0 && confirmado;
 
-  function elegirVoucher(file) {
-    if (!file) return;
-    if (file.size > MAX_VOUCHER) {
-      setError("El archivo supera los 5 MB.");
-      return;
-    }
-    setError("");
-    setVoucher(file);
-  }
-
-  function copiar() {
-    navigator.clipboard?.writeText(cuenta.numero.replace(/\s/g, ""));
-    setCopiado(true);
-    setTimeout(() => setCopiado(false), 2000);
-  }
-
   async function enviar() {
-    if (!puedeEnviar) return;
+    if (!puedeEnviar || enviando) return;
     setEnviando(true);
     setError("");
+    const pagador = apoderados[Number(pagadorIdx)];
     try {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Tu sesión expiró. Vuelve a iniciar sesión.");
-
-      const ids = cuotas.map((c) => c.id);
-      const extension = voucher.name.split(".").pop();
-      const ruta = `${user.id}/${unaCuota ? ids[0] : "total"}-${Date.now()}.${extension}`;
-      const { error: errorSubida } = await supabase.storage.from("vouchers").upload(ruta, voucher);
-      if (errorSubida) throw new Error("No se pudo subir el voucher. Intenta de nuevo.");
-
-      const pagador = apoderados[Number(pagadorIdx)];
-      const { error: errorPago } = await supabase.from("pagos").insert({
-        ...(unaCuota ? { cuota_id: ids[0] } : { cuota_id: null, cuotas_ids: ids }),
-        matricula_id: matriculaId,
-        monto: Number(monto),
-        metodo,
-        banco: cuenta.banco ?? null,
-        numero_operacion: numeroOperacion,
-        voucher_url: ruta,
-        estado: "validando",
-        pagado_por: pagador ? `${pagador.nombres} ${pagador.apellidos}` : null,
-        pagado_por_parentesco: pagador?.parentesco ?? null,
+      await registrarVoucher({
+        cuotas,
+        matriculaId,
+        voucher,
+        datos: {
+          monto: Number(monto),
+          metodo,
+          banco: cuentaDe(metodo, banco).banco ?? null,
+          numero_operacion: numeroOperacion,
+          pagado_por: pagador ? `${pagador.nombres} ${pagador.apellidos}` : null,
+          pagado_por_parentesco: pagador?.parentesco ?? null,
+        },
       });
-      if (errorPago) throw new Error("No se pudo registrar el pago. Intenta de nuevo.");
-
-      await supabase.from("cuotas").update({ estado: "validando" }).in("id", ids);
       onSubmitted?.();
       onClose();
     } catch (e) {
@@ -118,91 +218,18 @@ export default function ModalPago({ metodo: metodoInicial, cuotas, matriculaId, 
       }
     >
       <div className="space-y-6">
-        {!unaCuota && (
-          <div className="rounded-xl border border-stone-200 p-4">
-            <p className="text-sm font-medium text-huellitas-ink">Estás pagando {cuotas.length} cuotas:</p>
-            <ul className="mt-2 space-y-1">
-              {cuotas.map((c) => (
-                <li key={c.id} className="flex justify-between text-sm text-stone-600">
-                  <span>{c.concepto}</span>
-                  <span>{formatSoles(c.monto)}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+        {!unaCuota && <CuotasAPagar cuotas={cuotas} />}
 
-        <div>
-          <p className="text-sm font-medium text-huellitas-ink">1. Realiza el pago</p>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            {METODOS.map(({ id, label, icono: Icono }) => (
-              <button key={id} type="button" onClick={() => setMetodo(id)} className={opcion(metodo === id)}>
-                <Icono className="h-4 w-4" strokeWidth={2} />
-                {label}
-              </button>
-            ))}
-          </div>
-          {metodo === "transferencia" && (
-            <div className="mt-2 grid grid-cols-3 gap-2">
-              {Object.entries(BANCOS).map(([clave, b]) => (
-                <button key={clave} type="button" onClick={() => setBanco(clave)} className={`${opcion(banco === clave)} text-xs`}>
-                  {b.label}
-                </button>
-              ))}
-            </div>
-          )}
+        <DondePagar
+          metodo={metodo}
+          setMetodo={setMetodo}
+          banco={banco}
+          setBanco={setBanco}
+          concepto={`${estudianteNombre} – ${unaCuota ? cuotas[0].concepto : "varias cuotas"}`}
+          total={total}
+        />
 
-          <div className="mt-3 rounded-xl bg-huellitas-primary-light p-4">
-            {cuenta.banco && (
-              <p className="text-xs font-medium uppercase tracking-wide text-huellitas-primary/70">{cuenta.banco}</p>
-            )}
-            <p className="select-all font-display text-2xl font-semibold text-huellitas-primary">{cuenta.numero}</p>
-            <p className="mt-1 text-sm text-huellitas-ink/70">Titular: {cuenta.titular}</p>
-            <p className="mt-1 text-sm text-huellitas-ink/70">
-              Concepto: {estudianteNombre} – {unaCuota ? cuotas[0].concepto : "varias cuotas"}
-            </p>
-            <p className="mt-2 font-display text-xl font-semibold text-huellitas-primary">{formatSoles(total)}</p>
-          </div>
-          <button
-            type="button"
-            onClick={copiar}
-            className="mt-3 inline-flex items-center gap-2 rounded-lg bg-huellitas-accent px-4 py-2 text-sm font-medium text-huellitas-ink transition-colors hover:bg-huellitas-accent-dark hover:text-white"
-          >
-            {copiado ? <Check className="h-4 w-4" strokeWidth={2} /> : <Copy className="h-4 w-4" strokeWidth={2} />}
-            {copiado ? "Copiado" : metodo === "yape" ? "Copiar número" : "Copiar número de cuenta"}
-          </button>
-        </div>
-
-        <div>
-          <p className="text-sm font-medium text-huellitas-ink">2. Sube tu voucher</p>
-          {voucher ? (
-            <div className="mt-3 flex items-center justify-between rounded-lg border border-stone-200 p-3">
-              <span className="truncate text-sm text-stone-600">{voucher.name}</span>
-              <button type="button" onClick={() => setVoucher(null)} aria-label="Quitar voucher" className="text-stone-400 hover:text-rose-600">
-                <X className="h-4 w-4" strokeWidth={2} />
-              </button>
-            </div>
-          ) : (
-            <label
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => {
-                e.preventDefault();
-                elegirVoucher(e.dataTransfer.files?.[0]);
-              }}
-              className="mt-3 flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed border-stone-300 p-6 text-center transition-colors hover:border-huellitas-accent"
-            >
-              <Upload className="h-6 w-6 text-huellitas-accent" strokeWidth={2} />
-              <span className="text-sm text-stone-600">Arrastra tu voucher aquí o haz clic para seleccionar</span>
-              <span className="text-xs text-stone-400">JPG, PNG o PDF hasta 5 MB</span>
-              <input
-                type="file"
-                accept="image/jpeg,image/png,application/pdf"
-                className="hidden"
-                onChange={(e) => elegirVoucher(e.target.files?.[0])}
-              />
-            </label>
-          )}
-        </div>
+        <SubirVoucher voucher={voucher} setVoucher={setVoucher} onError={setError} />
 
         <div>
           <p className="text-sm font-medium text-huellitas-ink">3. Confirma los datos</p>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { Fragment, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Save } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -19,6 +19,16 @@ function Campo({ label, value, onChange, area = false }) {
       />
     </CampoBase>
   );
+}
+
+// Tarjetas fijas de la página (siempre las mismas y en el mismo orden): la
+// posición es su identidad. Una clave sacada del texto haría que el campo
+// pierda el foco con cada letra que se escribe.
+function Posiciones({ items, children }) {
+  return items.map((item, i) => (
+    // react-doctor-disable-next-line no-array-index-as-key
+    <Fragment key={i}>{children(item, i)}</Fragment>
+  ));
 }
 
 function Seccion({ titulo, children }) {
@@ -97,23 +107,27 @@ export default function PaginaEditor({ inicial }) {
       </Seccion>
 
       <Seccion titulo="Cifras destacadas">
-        {c.stats.map((s, i) => (
-          <div key={i} className="grid grid-cols-2 gap-3">
-            <Campo label={`Valor ${i + 1}`} value={s.valor} onChange={(v) => updArr("stats", i, "valor", v)} />
-            <Campo label={`Etiqueta ${i + 1}`} value={s.label} onChange={(v) => updArr("stats", i, "label", v)} />
-          </div>
-        ))}
+        <Posiciones items={c.stats}>
+          {(s, i) => (
+            <div className="grid grid-cols-2 gap-3">
+              <Campo label={`Valor ${i + 1}`} value={s.valor} onChange={(v) => updArr("stats", i, "valor", v)} />
+              <Campo label={`Etiqueta ${i + 1}`} value={s.label} onChange={(v) => updArr("stats", i, "label", v)} />
+            </div>
+          )}
+        </Posiciones>
       </Seccion>
 
       <Seccion titulo="Propuesta educativa (6 tarjetas)">
-        {c.propuesta.map((p, i) => (
-          <div key={i} className="rounded-lg border border-stone-200 p-3">
-            <Campo label={`Título ${i + 1}`} value={p.titulo} onChange={(v) => updArr("propuesta", i, "titulo", v)} />
-            <div className="mt-2">
-              <Campo label="Descripción" value={p.desc} onChange={(v) => updArr("propuesta", i, "desc", v)} />
+        <Posiciones items={c.propuesta}>
+          {(p, i) => (
+            <div className="rounded-lg border border-stone-200 p-3">
+              <Campo label={`Título ${i + 1}`} value={p.titulo} onChange={(v) => updArr("propuesta", i, "titulo", v)} />
+              <div className="mt-2">
+                <Campo label="Descripción" value={p.desc} onChange={(v) => updArr("propuesta", i, "desc", v)} />
+              </div>
             </div>
-          </div>
-        ))}
+          )}
+        </Posiciones>
       </Seccion>
 
       <Seccion titulo="Contacto">
@@ -124,16 +138,18 @@ export default function PaginaEditor({ inicial }) {
       </Seccion>
 
       <Seccion titulo="Directivos (contacto WhatsApp)">
-        {c.directivos.map((d, i) => (
-          <div key={i} className="rounded-lg border border-stone-200 p-3">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Campo label="Nombre" value={d.nombre} onChange={(v) => updArr("directivos", i, "nombre", v)} />
-              <Campo label="Cargo" value={d.cargo} onChange={(v) => updArr("directivos", i, "cargo", v)} />
-              <Campo label="Teléfono (WhatsApp)" value={d.telefono} onChange={(v) => updArr("directivos", i, "telefono", v)} />
-              <Campo label="Email" value={d.email} onChange={(v) => updArr("directivos", i, "email", v)} />
+        <Posiciones items={c.directivos}>
+          {(d, i) => (
+            <div className="rounded-lg border border-stone-200 p-3">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Campo label="Nombre" value={d.nombre} onChange={(v) => updArr("directivos", i, "nombre", v)} />
+                <Campo label="Cargo" value={d.cargo} onChange={(v) => updArr("directivos", i, "cargo", v)} />
+                <Campo label="Teléfono (WhatsApp)" value={d.telefono} onChange={(v) => updArr("directivos", i, "telefono", v)} />
+                <Campo label="Email" value={d.email} onChange={(v) => updArr("directivos", i, "email", v)} />
+              </div>
             </div>
-          </div>
-        ))}
+          )}
+        </Posiciones>
       </Seccion>
 
       {/* Barra de guardar */}

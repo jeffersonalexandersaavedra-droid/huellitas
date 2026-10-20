@@ -6,6 +6,48 @@ import { KeyRound, UserPlus, RefreshCw, Check, Copy, X } from "lucide-react";
 import { PASSWORD_MIN, generarPassword, MENSAJE_PASSWORD, passwordValida } from "@/lib/validacion";
 import { pedir } from "@/lib/peticiones";
 
+function Abrir({ modoActivar, onAbrir }) {
+  const Icono = modoActivar ? UserPlus : KeyRound;
+  return (
+    <button
+      type="button"
+      onClick={onAbrir}
+      className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+        modoActivar
+          ? "bg-huellitas-primary text-white hover:bg-huellitas-primary-dark"
+          : "border border-huellitas-primary text-huellitas-primary hover:bg-huellitas-primary-light"
+      }`}
+    >
+      <Icono className="h-4 w-4" strokeWidth={2} />
+      {modoActivar ? "Activar acceso al portal" : "Restablecer contraseña"}
+    </button>
+  );
+}
+
+function ContrasenaLista({ modoActivar, password }) {
+  const [copiado, setCopiado] = useState(false);
+
+  function copiar() {
+    navigator.clipboard?.writeText(password);
+    setCopiado(true);
+    setTimeout(() => setCopiado(false), 2000);
+  }
+
+  return (
+    <div className="mt-3 text-sm text-huellitas-ink">
+      <p className="text-emerald-700">{modoActivar ? "Acceso creado correctamente." : "Contraseña actualizada."}</p>
+      <p className="mt-2">
+        {modoActivar ? "Contraseña" : "Nueva contraseña"}: <b>{password}</b>
+      </p>
+      <button type="button" onClick={copiar} className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-huellitas-primary hover:underline">
+        {copiado ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+        {copiado ? "Copiado" : "Copiar"}
+      </button>
+      <p className="mt-2 text-xs text-stone-500">Ingresa con su DNI y esta contraseña. Podrá cambiarla luego.</p>
+    </div>
+  );
+}
+
 // Botón para gestionar la contraseña de un estudiante o docente.
 // - tipo: "estudiante" | "docente"
 // - tieneAcceso: si es false, en vez de "cambiar" la contraseña se CREA la
@@ -17,30 +59,21 @@ export default function ResetPasswordButton({ tipo, id, tieneAcceso = true }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [ok, setOk] = useState(false);
-  const [copiado, setCopiado] = useState(false);
-
   const modoActivar = !tieneAcceso;
 
   async function guardar() {
-    if (!passwordValida(password.trim())) {
-      setError(MENSAJE_PASSWORD);
-      return;
-    }
+    if (loading) return;
+    const nueva = password.trim();
+    if (!passwordValida(nueva)) return setError(MENSAJE_PASSWORD);
     setError("");
     setLoading(true);
     const data = modoActivar
-      ? await pedir("/api/admin/activar-acceso", { metodo: "POST", cuerpo: { estudianteId: id, password: password.trim() } })
-      : await pedir("/api/admin/cambiar-password", { metodo: "POST", cuerpo: { tipo, id, password: password.trim() } });
+      ? await pedir("/api/admin/activar-acceso", { metodo: "POST", cuerpo: { estudianteId: id, password: nueva } })
+      : await pedir("/api/admin/cambiar-password", { metodo: "POST", cuerpo: { tipo, id, password: nueva } });
     setLoading(false);
     if (data.error) return setError(data.error);
     setOk(true);
     if (modoActivar) router.refresh();
-  }
-
-  function copiar() {
-    navigator.clipboard?.writeText(password);
-    setCopiado(true);
-    setTimeout(() => setCopiado(false), 2000);
   }
 
   function cerrar() {
@@ -50,63 +83,19 @@ export default function ResetPasswordButton({ tipo, id, tieneAcceso = true }) {
     setOk(false);
   }
 
-  if (!abierto) {
-    return (
-      <button
-        type="button"
-        onClick={() => setAbierto(true)}
-        className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-          modoActivar
-            ? "bg-huellitas-primary text-white hover:bg-huellitas-primary-dark"
-            : "border border-huellitas-primary text-huellitas-primary hover:bg-huellitas-primary-light"
-        }`}
-      >
-        {modoActivar ? (
-          <UserPlus className="h-4 w-4" strokeWidth={2} />
-        ) : (
-          <KeyRound className="h-4 w-4" strokeWidth={2} />
-        )}
-        {modoActivar ? "Activar acceso al portal" : "Restablecer contraseña"}
-      </button>
-    );
-  }
+  if (!abierto) return <Abrir modoActivar={modoActivar} onAbrir={() => setAbierto(true)} />;
 
   return (
     <div className="w-full rounded-lg border border-huellitas-primary/30 bg-huellitas-cream p-4 sm:w-auto sm:min-w-[20rem]">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-medium text-huellitas-primary">
-          {modoActivar ? "Crear acceso al portal" : "Nueva contraseña"}
-        </p>
-        <button
-          type="button"
-          onClick={cerrar}
-          aria-label="Cerrar"
-          className="text-stone-400 hover:text-stone-600"
-        >
+        <p className="text-sm font-medium text-huellitas-primary">{modoActivar ? "Crear acceso al portal" : "Nueva contraseña"}</p>
+        <button type="button" onClick={cerrar} aria-label="Cerrar" className="text-stone-400 hover:text-stone-600">
           <X className="h-4 w-4" strokeWidth={2} />
         </button>
       </div>
 
       {ok ? (
-        <div className="mt-3 text-sm text-huellitas-ink">
-          <p className="text-emerald-700">
-            {modoActivar ? "Acceso creado correctamente." : "Contraseña actualizada."}
-          </p>
-          <p className="mt-2">
-            {modoActivar ? "Contraseña" : "Nueva contraseña"}: <b>{password}</b>
-          </p>
-          <button
-            type="button"
-            onClick={copiar}
-            className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-huellitas-primary hover:underline"
-          >
-            {copiado ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-            {copiado ? "Copiado" : "Copiar"}
-          </button>
-          <p className="mt-2 text-xs text-stone-500">
-            El estudiante ingresa con su DNI y esta contraseña. Podrá cambiarla luego.
-          </p>
-        </div>
+        <ContrasenaLista modoActivar={modoActivar} password={password} />
       ) : (
         <>
           <div className="mt-2 flex gap-2">
@@ -114,6 +103,7 @@ export default function ResetPasswordButton({ tipo, id, tieneAcceso = true }) {
               type="text"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              aria-label={modoActivar ? "Contraseña del acceso" : "Nueva contraseña"}
               placeholder={`Mínimo ${PASSWORD_MIN} caracteres`}
               className="w-full rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20"
             />
@@ -133,11 +123,7 @@ export default function ResetPasswordButton({ tipo, id, tieneAcceso = true }) {
             disabled={loading}
             className="mt-3 w-full rounded-lg bg-huellitas-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-huellitas-primary-dark disabled:opacity-60"
           >
-            {loading
-              ? "Guardando..."
-              : modoActivar
-                ? "Crear acceso"
-                : "Guardar contraseña"}
+            {loading ? "Guardando..." : modoActivar ? "Crear acceso" : "Guardar contraseña"}
           </button>
         </>
       )}

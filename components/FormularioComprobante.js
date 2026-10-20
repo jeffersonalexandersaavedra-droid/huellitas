@@ -91,96 +91,44 @@ function Opcion({ activa, onClick, icono: Icono, titulo, texto }) {
   );
 }
 
-// Paso 2: a nombre de quién (un apoderado, otra persona o una empresa).
-function DatosCliente({ esFactura, apoderados, titular, onTitular, cliente, setCliente, consultaHabilitada, onError }) {
-  const [masDatos, setMasDatos] = useState(false);
-  const [buscando, setBuscando] = useState(false);
-  const puedeBuscar = consultaHabilitada && (cliente.tipoDoc === "1" || esFactura);
-  const cambiar = (campo) => (e) => setCliente({ ...cliente, [campo]: e.target.value });
+function ElegirTitular({ apoderados, titular, onTitular }) {
+  return (
+    <div className="grid gap-2 sm:grid-cols-2">
+      {apoderados.map((a, i) => (
+        <Opcion
+          key={a.dni || nombreApoderado(a)}
+          activa={titular === String(i)}
+          onClick={() => onTitular(String(i))}
+          icono={UserRound}
+          titulo={nombreApoderado(a)}
+          texto={[a.parentesco, a.dni && `DNI ${a.dni}`].filter(Boolean).join(" · ")}
+        />
+      ))}
+      <Opcion
+        activa={titular === OTRA_PERSONA}
+        onClick={() => onTitular(OTRA_PERSONA)}
+        icono={UserPlus}
+        titulo="Otra persona"
+        texto="Escribe su DNI y nombre"
+      />
+    </div>
+  );
+}
 
-  async function buscarDocumento() {
-    if (buscando) return;
-    setBuscando(true);
-    onError("");
-    const r = await consultarDocumento(esFactura ? "ruc" : "dni", cliente.numDoc.trim());
-    setBuscando(false);
-    if (r.error) return onError(r.error);
-    setCliente({ ...cliente, nombre: r.nombre || cliente.nombre, direccion: r.direccion || cliente.direccion });
-    if (r.aviso) onError(`Atención: ${r.aviso}.`);
-  }
-
+// Datos opcionales del cliente, plegados para no recargar el formulario.
+function MasDatos({ esFactura, cliente, cambiar }) {
+  const [abierto, setAbierto] = useState(false);
   return (
     <>
-      {!esFactura && apoderados.length > 0 && (
-        <div className="grid gap-2 sm:grid-cols-2">
-          {apoderados.map((a, i) => (
-            <Opcion
-              key={a.dni || nombreApoderado(a)}
-              activa={titular === String(i)}
-              onClick={() => onTitular(String(i))}
-              icono={UserRound}
-              titulo={nombreApoderado(a)}
-              texto={[a.parentesco, a.dni && `DNI ${a.dni}`].filter(Boolean).join(" · ")}
-            />
-          ))}
-          <Opcion
-            activa={titular === OTRA_PERSONA}
-            onClick={() => onTitular(OTRA_PERSONA)}
-            icono={UserPlus}
-            titulo="Otra persona"
-            texto="Escribe su DNI y nombre"
-          />
-        </div>
-      )}
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        {cliente.tipoDoc !== "-" && (
-          <Campo
-            label={esFactura ? "RUC de la empresa" : DOCUMENTOS_CLIENTE[cliente.tipoDoc]}
-            required
-            ayuda={puedeBuscar && (esFactura || titular === OTRA_PERSONA) ? "Escríbelo y toca Buscar: el nombre se llena solo." : undefined}
-          >
-            <div className="flex gap-2">
-              <input
-                value={cliente.numDoc}
-                onChange={cambiar("numDoc")}
-                inputMode={cliente.tipoDoc === "1" || esFactura ? "numeric" : "text"}
-                maxLength={esFactura ? 11 : 12}
-                className={inputClass}
-              />
-              {puedeBuscar && (
-                <button
-                  type="button"
-                  onClick={buscarDocumento}
-                  disabled={buscando}
-                  className="flex shrink-0 items-center gap-1 rounded-lg border border-huellitas-primary px-3 text-sm font-medium text-huellitas-primary hover:bg-huellitas-primary-light disabled:opacity-50"
-                >
-                  <Search className="h-4 w-4" strokeWidth={2} />
-                  {buscando ? "..." : "Buscar"}
-                </button>
-              )}
-            </div>
-          </Campo>
-        )}
-        <Campo label={esFactura ? "Nombre de la empresa (razón social)" : "Nombre completo"} required>
-          <input value={cliente.nombre} onChange={cambiar("nombre")} className={inputClass} />
-        </Campo>
-        {esFactura && (
-          <Campo label="Dirección de la empresa" required className="sm:col-span-2">
-            <input value={cliente.direccion} onChange={cambiar("direccion")} className={inputClass} />
-          </Campo>
-        )}
-      </div>
-
       <button
         type="button"
-        aria-expanded={masDatos}
-        onClick={() => setMasDatos((v) => !v)}
+        aria-expanded={abierto}
+        onClick={() => setAbierto((v) => !v)}
         className="text-sm font-medium text-huellitas-primary hover:underline"
       >
-        {masDatos ? "Ocultar más datos" : "Más datos (opcional): otro documento, dirección, correo"}
+        {abierto ? "Ocultar más datos" : "Más datos (opcional): otro documento, dirección, correo"}
       </button>
-      {masDatos && (
+      {abierto && (
         <div className="grid gap-3 rounded-lg bg-stone-50 p-3 sm:grid-cols-2">
           {!esFactura && (
             <>
@@ -203,6 +151,87 @@ function DatosCliente({ esFactura, apoderados, titular, onTitular, cliente, setC
           </Campo>
         </div>
       )}
+    </>
+  );
+}
+
+// DNI o RUC con el botón que trae el nombre desde RENIEC o SUNAT.
+function DocumentoCliente({ esFactura, cliente, setCliente, cambiar, consultaHabilitada, sugerirBusqueda, onError }) {
+  const [buscando, setBuscando] = useState(false);
+  const puedeBuscar = consultaHabilitada && (cliente.tipoDoc === "1" || esFactura);
+
+  async function buscar() {
+    if (buscando) return;
+    setBuscando(true);
+    onError("");
+    const r = await consultarDocumento(esFactura ? "ruc" : "dni", cliente.numDoc.trim());
+    setBuscando(false);
+    if (r.error) return onError(r.error);
+    setCliente({ ...cliente, nombre: r.nombre || cliente.nombre, direccion: r.direccion || cliente.direccion });
+    if (r.aviso) onError(`Atención: ${r.aviso}.`);
+  }
+
+  return (
+    <Campo
+      label={esFactura ? "RUC de la empresa" : DOCUMENTOS_CLIENTE[cliente.tipoDoc]}
+      required
+      ayuda={puedeBuscar && sugerirBusqueda ? "Escríbelo y toca Buscar: el nombre se llena solo." : undefined}
+    >
+      <div className="flex gap-2">
+        <input
+          value={cliente.numDoc}
+          onChange={cambiar("numDoc")}
+          inputMode={cliente.tipoDoc === "1" || esFactura ? "numeric" : "text"}
+          maxLength={esFactura ? 11 : 12}
+          className={inputClass}
+        />
+        {puedeBuscar && (
+          <button
+            type="button"
+            onClick={buscar}
+            disabled={buscando}
+            className="flex shrink-0 items-center gap-1 rounded-lg border border-huellitas-primary px-3 text-sm font-medium text-huellitas-primary hover:bg-huellitas-primary-light disabled:opacity-50"
+          >
+            <Search className="h-4 w-4" strokeWidth={2} />
+            {buscando ? "..." : "Buscar"}
+          </button>
+        )}
+      </div>
+    </Campo>
+  );
+}
+
+// Paso 2: a nombre de quién (un apoderado, otra persona o una empresa).
+function DatosCliente({ esFactura, apoderados, titular, onTitular, cliente, setCliente, consultaHabilitada, onError }) {
+  const cambiar = (campo) => (e) => setCliente({ ...cliente, [campo]: e.target.value });
+
+  return (
+    <>
+      {!esFactura && apoderados.length > 0 && <ElegirTitular apoderados={apoderados} titular={titular} onTitular={onTitular} />}
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        {cliente.tipoDoc !== "-" && (
+          <DocumentoCliente
+            esFactura={esFactura}
+            cliente={cliente}
+            setCliente={setCliente}
+            cambiar={cambiar}
+            consultaHabilitada={consultaHabilitada}
+            sugerirBusqueda={esFactura || titular === OTRA_PERSONA}
+            onError={onError}
+          />
+        )}
+        <Campo label={esFactura ? "Nombre de la empresa (razón social)" : "Nombre completo"} required>
+          <input value={cliente.nombre} onChange={cambiar("nombre")} className={inputClass} />
+        </Campo>
+        {esFactura && (
+          <Campo label="Dirección de la empresa" required className="sm:col-span-2">
+            <input value={cliente.direccion} onChange={cambiar("direccion")} className={inputClass} />
+          </Campo>
+        )}
+      </div>
+
+      <MasDatos esFactura={esFactura} cliente={cliente} cambiar={cambiar} />
     </>
   );
 }
