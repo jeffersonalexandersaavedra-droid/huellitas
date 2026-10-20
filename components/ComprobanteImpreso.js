@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Download } from "lucide-react";
 import ImprimirButton from "@/components/ImprimirButton";
+import HojaTicket from "@/components/HojaTicket";
 import AvisoVacio from "@/components/AvisoVacio";
 import { COLEGIO } from "@/lib/colegio";
 import { formatFecha } from "@/lib/fecha";
@@ -86,25 +87,27 @@ function Detalle({ items }) {
   );
 }
 
+// Líneas antes del total (el ticket interno no lleva IGV).
+function subtotalesDe(c) {
+  if (c.tipo === "ticket") return [];
+  return [
+    ["Op. inafecta", formatSoles(redondear(c.total))],
+    ["IGV", formatSoles(0)],
+  ];
+}
+
 function Totales({ c }) {
-  const total = formatSoles(redondear(c.total));
   return (
     <dl className="ml-auto mt-4 w-full max-w-xs space-y-1 text-sm">
-      {c.tipo !== "ticket" && (
-        <>
-          <div className="flex justify-between">
-            <dt className="text-stone-500">Op. inafecta</dt>
-            <dd>{total}</dd>
-          </div>
-          <div className="flex justify-between">
-            <dt className="text-stone-500">IGV</dt>
-            <dd>{formatSoles(0)}</dd>
-          </div>
-        </>
-      )}
+      {subtotalesDe(c).map(([etiqueta, valor]) => (
+        <div key={etiqueta} className="flex justify-between">
+          <dt className="text-stone-500">{etiqueta}</dt>
+          <dd>{valor}</dd>
+        </div>
+      ))}
       <div className="flex justify-between border-t border-stone-200 pt-1 text-base font-semibold text-huellitas-ink">
         <dt>Total</dt>
-        <dd>{total}</dd>
+        <dd>{formatSoles(redondear(c.total))}</dd>
       </div>
     </dl>
   );
@@ -127,9 +130,129 @@ function Pie({ c }) {
   );
 }
 
+function HojaA4({ c }) {
+  return (
+    <article className="relative overflow-hidden rounded-xl bg-white p-6 shadow-sm print:rounded-none print:p-0 print:shadow-none md:p-10">
+      {c.estado === "anulado" && (
+        <p className="pointer-events-none absolute inset-0 flex items-center justify-center text-7xl font-bold uppercase tracking-widest text-rose-500/15 -rotate-12">
+          Anulado
+        </p>
+      )}
+      <Cabecera c={c} />
+      <dl className="mt-5 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
+        {datosDe(c).map(([etiqueta, valor]) => (
+          <div key={etiqueta} className="flex gap-2">
+            <dt className="w-32 shrink-0 text-stone-500">{etiqueta}:</dt>
+            <dd className="font-medium text-huellitas-ink">{valor}</dd>
+          </div>
+        ))}
+      </dl>
+      <Detalle items={c.items} />
+      <Totales c={c} />
+      <Pie c={c} />
+    </article>
+  );
+}
+
+const Linea = () => <hr className="my-2 border-t border-dashed border-black" />;
+
+// Mismo comprobante en papel de ticketera (80 mm): una sola columna, solo
+// negro (la impresora térmica no imprime colores).
+function Ticket({ c }) {
+  return (
+    <HojaTicket>
+      <header className="text-center">
+        <Image src="/logos/huellitas-escudo.png" alt="" width={36} height={44} className="mx-auto grayscale" />
+        <p className="mt-1 text-sm font-bold uppercase">{COLEGIO.nombre}</p>
+        <p>{COLEGIO.direccion}</p>
+        <p>{COLEGIO.correo}</p>
+        <p className="font-semibold">RUC {COLEGIO.ruc}</p>
+      </header>
+      <Linea />
+      <div className="text-center">
+        <p className="font-bold uppercase">{TIPOS_COMPROBANTE[c.tipo]}</p>
+        <p className="font-mono text-sm font-bold">{numeroComprobante(c)}</p>
+        {c.estado === "anulado" && <p className="mt-1 font-bold">*** ANULADO ***</p>}
+      </div>
+      <Linea />
+      <dl className="space-y-0.5">
+        {datosDe(c).map(([etiqueta, valor]) => (
+          <div key={etiqueta} className="flex gap-1">
+            <dt className="shrink-0">{etiqueta}:</dt>
+            <dd className="font-semibold">{valor}</dd>
+          </div>
+        ))}
+      </dl>
+      <Linea />
+      <ul className="space-y-1.5">
+        {c.items.map((item, i) => (
+          // Líneas fijas de un comprobante ya emitido: la posición es su identidad.
+          // react-doctor-disable-next-line no-array-index-as-key
+          <li key={i}>
+            <p>{item.descripcion}</p>
+            <p className="flex justify-between">
+              <span>
+                {item.cantidad} x {formatSoles(item.precio)}
+              </span>
+              <span>{formatSoles(redondear(item.cantidad * item.precio))}</span>
+            </p>
+          </li>
+        ))}
+      </ul>
+      <Linea />
+      <dl className="space-y-0.5">
+        {subtotalesDe(c).map(([etiqueta, valor]) => (
+          <div key={etiqueta} className="flex justify-between">
+            <dt>{etiqueta}</dt>
+            <dd>{valor}</dd>
+          </div>
+        ))}
+        <div className="flex justify-between text-sm font-bold">
+          <dt>TOTAL</dt>
+          <dd>{formatSoles(redondear(c.total))}</dd>
+        </div>
+      </dl>
+      <Linea />
+      <p className="text-[10px]">{leyendaDe(c)}</p>
+      {c.observaciones && c.tipo !== "nota_credito" && <p className="mt-1 text-[10px]">Obs.: {c.observaciones}</p>}
+      <p className="mt-2 text-center font-semibold">¡Gracias por su pago!</p>
+    </HojaTicket>
+  );
+}
+
+// Boletas y tickets salen en ticketera; facturas (y sus notas), en A4.
+const formatoPorDefecto = (c) =>
+  c.tipo === "factura" || c.referencia?.tipo === "factura" ? "a4" : "ticketera";
+
+const FORMATOS = [
+  ["ticketera", "Ticketera 80 mm"],
+  ["a4", "Hoja A4"],
+];
+
+function SelectorFormato({ actual }) {
+  return (
+    <nav aria-label="Formato de impresión" className="flex rounded-lg border border-stone-300 bg-white p-0.5 text-sm">
+      {FORMATOS.map(([valor, texto]) => (
+        <Link
+          key={valor}
+          href={{ query: { formato: valor } }}
+          replace
+          aria-current={actual === valor ? "page" : undefined}
+          className={`rounded-md px-3 py-1.5 font-medium ${
+            actual === valor ? "bg-huellitas-primary text-white" : "text-stone-600 hover:bg-stone-50"
+          }`}
+        >
+          {texto}
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
 // Comprobante listo para imprimir. Lo carga con el cliente de la sesión,
 // así el RLS decide quién lo ve (personal: todos; padre: los suyos).
-export default async function ComprobanteImpreso({ supabase, id, volver }) {
+// `formato`: "ticketera" | "a4" (si no viene, según el tipo).
+export default async function ComprobanteImpreso({ supabase, id, volver, formato }) {
   const { data: c } = await supabase
     .from("comprobantes")
     .select("*, referencia:referencia_id(tipo, serie, numero)")
@@ -146,12 +269,14 @@ export default async function ComprobanteImpreso({ supabase, id, volver }) {
   }
 
   const pdfOficial = c.enlace_pdf ?? (await enlacesDeArchivos([c]))[c.id];
+  const actual = FORMATOS.some(([valor]) => valor === formato) ? formato : formatoPorDefecto(c);
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
         <Regreso {...volver} />
         <div className="flex flex-wrap gap-2">
+          <SelectorFormato actual={actual} />
           {pdfOficial && (
             <a
               href={pdfOficial}
@@ -167,25 +292,7 @@ export default async function ComprobanteImpreso({ supabase, id, volver }) {
         </div>
       </div>
 
-      <article className="relative overflow-hidden rounded-xl bg-white p-6 shadow-sm print:rounded-none print:p-0 print:shadow-none md:p-10">
-        {c.estado === "anulado" && (
-          <p className="pointer-events-none absolute inset-0 flex items-center justify-center text-7xl font-bold uppercase tracking-widest text-rose-500/15 -rotate-12">
-            Anulado
-          </p>
-        )}
-        <Cabecera c={c} />
-        <dl className="mt-5 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
-          {datosDe(c).map(([etiqueta, valor]) => (
-            <div key={etiqueta} className="flex gap-2">
-              <dt className="w-32 shrink-0 text-stone-500">{etiqueta}:</dt>
-              <dd className="font-medium text-huellitas-ink">{valor}</dd>
-            </div>
-          ))}
-        </dl>
-        <Detalle items={c.items} />
-        <Totales c={c} />
-        <Pie c={c} />
-      </article>
+      {actual === "ticketera" ? <Ticket c={c} /> : <HojaA4 c={c} />}
     </div>
   );
 }

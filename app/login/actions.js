@@ -1,6 +1,5 @@
 "use server";
 
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { rutaInicio } from "@/lib/roles";
@@ -15,6 +14,8 @@ const INVALID_CREDENTIALS =
 const SIN_ROL =
   "Esta cuenta no tiene un rol asignado en el sistema. Comunícate con administración.";
 
+// Devuelve { destino } (el portal de su rol) o { error }. No usa redirect():
+// llamado desde el formulario, Next lo entrega como una excepción.
 export async function login(formData) {
   const identifier = formData.get("identifier")?.toString().trim() ?? "";
   const password = formData.get("password")?.toString() ?? "";
@@ -64,8 +65,8 @@ export async function login(formData) {
     return { error: INVALID_CREDENTIALS };
   }
 
-  const inicio = rutaInicio(data.user?.app_metadata?.role);
-  if (inicio) redirect(inicio);
+  const destino = rutaInicio(data.user?.app_metadata?.role);
+  if (destino) return { destino };
 
   await supabase.auth.signOut();
   return { error: SIN_ROL };

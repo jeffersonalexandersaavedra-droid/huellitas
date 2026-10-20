@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { login } from "@/app/login/actions";
 import { inputClass } from "@/lib/ui";
 
 export default function LoginForm() {
+  const router = useRouter();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -19,13 +21,13 @@ export default function LoginForm() {
     formData.set("identifier", identifier);
     formData.set("password", password);
 
-    // Si login() tiene éxito redirige al portal; si no, devuelve { error }.
+    // login() devuelve { destino } (su portal) o { error }. Solo un fallo de
+    // red llega al catch.
     try {
       const result = await login(formData);
-      if (result?.error) {
-        setError(result.error);
-        setLoading(false);
-      }
+      if (result.destino) return router.replace(result.destino);
+      setError(result.error);
+      setLoading(false);
     } catch {
       setError("No se pudo conectar. Revisa tu internet e inténtalo de nuevo.");
       setLoading(false);
