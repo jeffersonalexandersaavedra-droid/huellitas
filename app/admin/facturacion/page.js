@@ -10,6 +10,7 @@ import SeriesComprobantes from "@/components/SeriesComprobantes";
 import { obtenerAnioActivo, estudiantesMatriculados, apoderadosDe, filasPorIds } from "@/lib/consultas";
 import { nubefactConfigurado } from "@/lib/nubefact";
 import { enlacesDeArchivos } from "@/lib/emision";
+import { cuotasDelPago } from "@/lib/cuentas";
 import { hoyISO } from "@/lib/fecha";
 
 export const metadata = { title: "Facturación" };
@@ -24,7 +25,6 @@ const SECCIONES = [
 
 const ESTADOS_COBRADOS = ["pagado", "verificado"];
 const vigente = (c) => c.tipo !== "nota_credito" && c.estado !== "rechazado" && c.estado !== "anulado";
-const idsDeCuotas = (p) => (p.cuotas_ids?.length ? p.cuotas_ids : [p.cuota_id]);
 
 // Pagos cobrados sin comprobante, con lo necesario para emitirlo.
 async function pagosPorFacturar(supabase) {
@@ -38,7 +38,7 @@ async function pagosPorFacturar(supabase) {
     .limit(200);
 
   const pagos = (data ?? []).filter((p) => !p.comprobantes.some(vigente));
-  const idsCuotas = [...new Set(pagos.flatMap(idsDeCuotas).filter(Boolean))];
+  const idsCuotas = [...new Set(pagos.flatMap(cuotasDelPago))];
   const [cuotas, apoderados] = await Promise.all([
     filasPorIds(
       (lote) =>
@@ -57,7 +57,7 @@ async function pagosPorFacturar(supabase) {
     alumno: m?.estudiantes ? `${m.estudiantes.apellidos} ${m.estudiantes.nombres}` : "Estudiante",
     aula: m?.aulas?.nombre ?? "—",
     anio: m?.anios_escolares?.anio,
-    cuotas: idsDeCuotas(p)
+    cuotas: cuotasDelPago(p)
       .map((id) => cuotaPorId.get(id))
       .filter(Boolean)
       .sort((a, b) => (a.mes ?? 0) - (b.mes ?? 0)),

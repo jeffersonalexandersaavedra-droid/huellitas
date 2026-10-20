@@ -4,6 +4,7 @@ import RegistrarPagoCaja from "@/components/RegistrarPagoCaja";
 import Pestanas from "@/components/Pestanas";
 import { obtenerAnioActivo, estudiantesMatriculados } from "@/lib/consultas";
 import { nubefactConfigurado } from "@/lib/nubefact";
+import { conEnlaceVoucher } from "@/lib/vouchers";
 
 export const metadata = { title: "Pagos" };
 
@@ -11,10 +12,6 @@ const PESTANAS = [
   { id: "vouchers", href: "/admin/pagos", label: "Vouchers por validar" },
   { id: "caja", href: "/admin/pagos?tab=caja", label: "Registrar pago en caja" },
 ];
-
-// Ruta del archivo en el depósito "vouchers" (los pagos antiguos guardaban
-// la URL pública completa).
-const rutaVoucher = (v) => (v?.startsWith("http") ? v.split("/vouchers/")[1] : v);
 
 export default async function PagosPage({ searchParams }) {
   const { tab } = await searchParams;
@@ -31,18 +28,7 @@ export default async function PagosPage({ searchParams }) {
       .eq("estado", "validando")
       .order("fecha_pago", { ascending: true });
 
-    // Los vouchers son privados: se muestran con enlaces temporales (1 hora).
-    const rutas = (pagos ?? []).map((p) => rutaVoucher(p.voucher_url)).filter(Boolean);
-    const { data: firmados } = rutas.length
-      ? await supabase.storage.from("vouchers").createSignedUrls(rutas, 3600)
-      : { data: [] };
-    const enlace = Object.fromEntries((firmados ?? []).map((f) => [f.path, f.signedUrl]));
-
-    contenido = (
-      <PagosBandeja
-        pagos={(pagos ?? []).map((p) => ({ ...p, voucherUrl: enlace[rutaVoucher(p.voucher_url)] ?? null }))}
-      />
-    );
+    contenido = <PagosBandeja pagos={await conEnlaceVoucher(supabase, pagos ?? [])} />;
   } else {
     const anioActivo = await obtenerAnioActivo(supabase);
     contenido = (

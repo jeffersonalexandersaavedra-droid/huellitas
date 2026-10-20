@@ -15,12 +15,14 @@ import MisComprobantes from "@/components/MisComprobantes";
 import AvisosColegio from "@/components/AvisosColegio";
 import AsistenciaPadre from "@/components/AsistenciaPadre";
 import { MESES, formatFecha, aFecha, diaYMes } from "@/lib/fecha";
-import { montoACobrar, siguienteCuotaPorPagar, formatSoles } from "@/lib/cuentas";
+import { montoACobrar, siguienteCuotaPorPagar, cuotasDelPago, formatSoles } from "@/lib/cuentas";
+import EnlaceVoucher from "@/components/EnlaceVoucher";
 
 export default function PadreDashboard({
   estudiante,
   matricula,
   cuotas,
+  vouchers,
   areas,
   notas,
   observaciones,
@@ -66,7 +68,7 @@ export default function PadreDashboard({
   // enviar o se pagó, el aviso desaparece solo).
   const porPagar = new Set(cuotasPagables.map((c) => c.id));
   const rechazosVigentes = rechazados.filter((p) =>
-    (p.cuotas_ids?.length ? p.cuotas_ids : [p.cuota_id]).some((id) => porPagar.has(id))
+    cuotasDelPago(p).some((id) => porPagar.has(id))
   );
   const totalPagar = detalleTotal.reduce((s, d) => s + Number(d.monto), 0);
 
@@ -171,6 +173,7 @@ export default function PadreDashboard({
             cuota={cuotaDelMes}
             mesActual={mesActual}
             bloqueo={cuotaDelMes.id === cuotaPagableId ? null : motivoBloqueo}
+            voucherUrl={vouchers[cuotaDelMes.id]}
             onPagar={(metodo) => abrirPago(cuotaDelMes, metodo)}
           />
         ) : (
@@ -198,6 +201,7 @@ export default function PadreDashboard({
           <ListaCuotas
             cuotas={otrasCuotas}
             anio={anioActual}
+            vouchers={vouchers}
             cuotaPagableId={cuotaPagableId}
             onPagar={abrirPago}
           />
@@ -237,7 +241,7 @@ export default function PadreDashboard({
 
       {showHistorial && (
         <Modal titulo={`Historial de cuotas ${anioActual}`} onCerrar={() => setShowHistorial(false)} ancho="sm:max-w-2xl">
-          <ListaCuotas cuotas={cuotas} anio={anioActual} />
+          <ListaCuotas cuotas={cuotas} anio={anioActual} vouchers={vouchers} />
         </Modal>
       )}
 
@@ -260,7 +264,7 @@ function paraPagar(cuota) {
 }
 
 // `bloqueo`: por qué aún no se puede pagar (pago en orden), o null.
-function CuotaDelMes({ cuota, mesActual, onPagar, bloqueo = null }) {
+function CuotaDelMes({ cuota, mesActual, onPagar, bloqueo = null, voucherUrl }) {
   const { monto, descuentoVigente } = montoACobrar(cuota);
   const vencimiento = cuota.fecha_vencimiento ? aFecha(cuota.fecha_vencimiento) : null;
   const diasRestantes = vencimiento
@@ -316,6 +320,11 @@ function CuotaDelMes({ cuota, mesActual, onPagar, bloqueo = null }) {
       <div className="mt-6">
         <StepperPago estado={cuota.estado} />
       </div>
+      {voucherUrl && (
+        <p className="mt-4 text-right">
+          <EnlaceVoucher url={voucherUrl} />
+        </p>
+      )}
 
       {(cuota.estado === "pendiente" || cuota.estado === "vencido") &&
         (bloqueo ? (

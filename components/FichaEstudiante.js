@@ -4,6 +4,7 @@ import EstadoBadge from "@/components/EstadoBadge";
 import EstadoCuentaBadge from "@/components/EstadoCuentaBadge";
 import ResetPasswordButton from "@/components/ResetPasswordButton";
 import DescuentosEstudiante from "@/components/DescuentosEstudiante";
+import EnlaceVoucher from "@/components/EnlaceVoucher";
 import { MESES, formatFecha } from "@/lib/fecha";
 import { montoACobrar, formatSoles } from "@/lib/cuentas";
 import { BIMESTRES } from "@/lib/cursos";
@@ -115,7 +116,7 @@ function Apoderados({ apoderados }) {
   );
 }
 
-function Cuotas({ cuotas, anio }) {
+function Cuotas({ cuotas, vouchers, anio }) {
   return (
     <Seccion titulo={`Cuotas ${anio ?? ""}`}>
       {cuotas.length === 0 ? (
@@ -140,7 +141,10 @@ function Cuotas({ cuotas, anio }) {
                   <td className="py-3 pr-4 text-stone-500">{formatFecha(c.fecha_vencimiento)}</td>
                   <td className="py-3 pr-4 text-huellitas-ink">{formatSoles(montoACobrar(c).monto)}</td>
                   <td className="py-3">
-                    <EstadoBadge estado={c.estado} />
+                    <div className="flex flex-wrap items-center gap-3">
+                      <EstadoBadge estado={c.estado} />
+                      <EnlaceVoucher url={vouchers[c.id]} />
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -235,6 +239,7 @@ export default function FichaEstudiante({
   matricula,
   apoderados,
   cuotas,
+  vouchers,
   descuentos,
   puedeDarDescuentos,
   conDeuda,
@@ -253,7 +258,7 @@ export default function FichaEstudiante({
           <DescuentosEstudiante matriculaId={matricula.id} descuentos={descuentos} puedeEditar={puedeDarDescuentos} />
         </Seccion>
       )}
-      <Cuotas cuotas={cuotas} anio={anio} />
+      <Cuotas cuotas={cuotas} vouchers={vouchers} anio={anio} />
       <Notas calificadas={calificadas} informe={conNotas ? enlaceInforme(estudiante.id, matricula.id) : null} />
       <Historico historico={historico} estudianteId={estudiante.id} primerAnio={matricula ? (anio ?? "este año") : null} />
     </div>

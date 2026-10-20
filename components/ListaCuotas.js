@@ -1,12 +1,14 @@
 import { Lock, Smartphone, Building2 } from "lucide-react";
 import EstadoBadge from "@/components/EstadoBadge";
+import EnlaceVoucher from "@/components/EnlaceVoucher";
 import { MESES, formatFecha } from "@/lib/fecha";
 import { montoACobrar, cuotaEstaVencida, formatSoles } from "@/lib/cuentas";
 
 // Lista de cuotas pensada para celular: mes, monto, estado y, solo en la
-// cuota que toca pagar, los botones de método de pago.
+// cuota que toca pagar, los botones de método de pago. `vouchers`
+// ({ [cuotaId]: enlace }) agrega "Ver voucher" a las cuotas ya enviadas.
 // Sin `onPagar` es de solo lectura (historial).
-export default function ListaCuotas({ cuotas, anio, cuotaPagableId = null, onPagar }) {
+export default function ListaCuotas({ cuotas, anio, vouchers = {}, cuotaPagableId = null, onPagar }) {
   return (
     <ul className="divide-y divide-stone-100">
       {cuotas.map((cuota) => {
@@ -38,6 +40,7 @@ export default function ListaCuotas({ cuotas, anio, cuotaPagableId = null, onPag
                   )}
                   <EstadoBadge estado={estado} />
                 </span>
+                <EnlaceVoucher url={vouchers[cuota.id]} />
               </div>
             </div>
 
