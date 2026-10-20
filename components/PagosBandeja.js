@@ -29,7 +29,7 @@ function detallePago(p) {
 // Vouchers enviados por los padres para validar. Cada pago trae
 // `voucherUrl`: enlace temporal al archivo (el depósito es privado).
 // Validar o rechazar cambia el pago y sus cuotas en un solo paso
-// (función resolver_pago de la base de datos).
+// (función validar_pago de la base de datos).
 export default function PagosBandeja({ pagos }) {
   const router = useRouter();
   const [resueltos, setResueltos] = useState(() => new Set());
@@ -44,7 +44,7 @@ export default function PagosBandeja({ pagos }) {
     if (procesando) return;
     setProcesando(pago.id);
     setError("");
-    const { error: fallo } = await createClient().rpc("resolver_pago", {
+    const { error: fallo } = await createClient().rpc("validar_pago", {
       p_pago: pago.id,
       p_aprobar: aprobar,
       p_motivo: motivoRechazo,

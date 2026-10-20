@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Save, CheckCheck, BookOpen } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { estudiantesDelAula } from "@/lib/consultas";
-import { ESTADOS_ASISTENCIA, CLAVES_ASISTENCIA } from "@/lib/asistencia";
+import { ESTADOS_ASISTENCIA, CLAVES_ASISTENCIA, LEYENDA_ASISTENCIA } from "@/lib/asistencia";
 import { hoyISO } from "@/lib/fecha";
 import { inputClass } from "@/lib/ui";
 import AvisoVacio from "@/components/AvisoVacio";
@@ -160,6 +160,8 @@ export default function AsistenciaDocente({ aulas }) {
                           key={k}
                           type="button"
                           title={ESTADOS_ASISTENCIA[k].label}
+                          aria-label={`${ESTADOS_ASISTENCIA[k].label}: ${e.nombre}`}
+                          aria-pressed={activo}
                           onClick={() => setMarcas((prev) => ({ ...prev, [e.matriculaId]: k }))}
                           className={`min-w-[2.75rem] rounded-lg border px-2 py-1.5 text-xs font-semibold transition-colors ${
                             activo
@@ -177,7 +179,7 @@ export default function AsistenciaDocente({ aulas }) {
             </ul>
 
             <p className="mt-3 text-xs text-stone-400">
-              A = Asistió · T = Tardanza · FJ = Falta justificada · FI = Falta injustificada
+              {LEYENDA_ASISTENCIA}
             </p>
 
             <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">

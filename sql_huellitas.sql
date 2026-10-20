@@ -1,14 +1,14 @@
 -- ============================================================
--- HUELLITAS - SQL ÚNICO Y DEFINITIVO
--- Pega y ejecuta este archivo completo en el SQL Editor de
--- Supabase. Reemplaza cualquier versión anterior (v2, v3, etc.):
--- de ahora en adelante este es el ÚNICO archivo SQL del proyecto.
+-- HUELLITAS - REGISTRO DE LA BASE DE DATOS
 --
--- ATENCIÓN: el bloque de LIMPIEZA borra las tablas y TODOS sus
--- datos (incluido cualquier estudiante de prueba que hayas
--- creado a mano en turnos anteriores, tipo "Aldair Salas Flores").
--- Es intencional: los estudiantes de prueba ahora se crean desde
--- el panel admin (/admin/estudiantes/nuevo), no por SQL.
+-- ⚠ NO EJECUTES ESTE ARCHIVO COMPLETO. La primera parte (LIMPIEZA)
+-- BORRA TODAS LAS TABLAS Y SUS DATOS: estudiantes, pagos, notas...
+--
+-- Este archivo es el historial de cómo se armó la base, en orden.
+-- Cada cambio nuevo se agrega al final en su propia sección
+-- ("(agregado)") y se ejecuta SOLO esa sección en el SQL Editor de
+-- Supabase. Sirve también para crear la base desde cero en un
+-- proyecto NUEVO y vacío.
 -- ============================================================
 
 -- LIMPIEZA (borra todo lo mal creado antes)
@@ -1094,6 +1094,189 @@ begin
 end $$;
 
 -- ============================================================
+-- COMPETENCIAS (primer diseño), SIAGIE, ASISTENCIA Y PAGOS ATÓMICOS
+-- (agregado el 5 de octubre; ya aplicado en la base)
+-- ============================================================
+
+-- Primer diseño de notas por competencia. Lo reemplazó cursos.competencias
+-- (sección siguiente): estas dos tablas ya no las usa el sistema. La tabla
+-- competencias guarda las 40 competencias del CNEB y notas_competencia
+-- quedó vacía.
+create table if not exists competencias (
+  id uuid primary key default gen_random_uuid(),
+  nivel text not null check (nivel in ('inicial', 'primaria')),
+  area text not null,
+  codigo text not null check (codigo ~ '^[0-9]{2}$'),
+  nombre text not null,
+  activo boolean not null default true,
+  created_at timestamptz default now(),
+  unique (nivel, area, codigo)
+);
+alter table competencias enable row level security;
+create policy "todos_ven_competencias" on competencias for select to authenticated using (true);
+create policy "admin_gestiona_competencias" on competencias for all
+  using (public.rol_actual() = 'admin') with check (public.rol_actual() = 'admin');
+
+create table if not exists notas_competencia (
+  id uuid primary key default gen_random_uuid(),
+  matricula_id uuid not null references matriculas(id) on delete cascade,
+  competencia_id uuid not null references competencias(id) on delete restrict,
+  curso text not null,
+  bimestre integer not null check (bimestre between 1 and 4),
+  nota text not null check (nota in ('AD', 'A', 'B', 'C')),
+  conclusion text,
+  registrado_por uuid default auth.uid() references auth.users(id) on delete set null,
+  updated_at timestamptz not null default now(),
+  unique (matricula_id, competencia_id, bimestre)
+);
+create index if not exists idx_notas_competencia_matricula on notas_competencia(matricula_id, bimestre);
+alter table notas_competencia enable row level security;
+create policy "admin_todo_notas_competencia" on notas_competencia for all
+  using (public.rol_actual() = 'admin') with check (public.rol_actual() = 'admin');
+create policy "secretaria_ve_notas_competencia" on notas_competencia for select
+  using (public.rol_actual() = 'secretaria');
+create policy "docente_gestiona_notas_competencia" on notas_competencia for all
+  using (public.rol_actual() = 'docente' and public.docente_puede_curso(matricula_id, curso))
+  with check (public.rol_actual() = 'docente' and public.docente_puede_curso(matricula_id, curso));
+create policy "estudiante_ve_sus_notas_competencia" on notas_competencia for select
+  using (matricula_id in (
+    select m.id from matriculas m join estudiantes e on e.id = m.estudiante_id where e.user_id = auth.uid()
+  ));
+
+create or replace function public.notas_competencia_area()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  select c.area into new.curso from competencias c where c.id = new.competencia_id;
+  new.updated_at := now();
+  return new;
+end $$;
+create or replace trigger notas_competencia_area before insert or update on notas_competencia
+  for each row execute function public.notas_competencia_area();
+create or replace trigger auditoria_notas_competencia after insert or update or delete on notas_competencia
+  for each row execute function public.registrar_auditoria();
+create or replace trigger auditoria_competencias after insert or update or delete on competencias
+  for each row execute function public.registrar_auditoria();
+-- (las 40 competencias del CNEB se cargaron con un INSERT; son las mismas
+-- que hoy están en cursos.competencias)
+
+-- Las competencias transversales se califican como un área más (las asigna
+-- el admin al tutor del aula).
+insert into cursos (nombre, nivel)
+select 'Competencias transversales', n from unnest(array['inicial', 'primaria']) n
+where not exists (select 1 from cursos c where c.nombre = 'Competencias transversales' and c.nivel = n);
+
+-- En Inicial el CNEB no tiene Arte y Cultura, Religión ni Descubrimiento del
+-- Mundo: sus competencias van en Comunicación y Personal Social.
+update cursos set activo = false
+ where nivel = 'inicial' and nombre in ('Arte y Cultura', 'Religión', 'Descubrimiento del Mundo');
+
+-- Código del estudiante en el SIAGIE (14 dígitos). Si está vacío se usa el
+-- DNI completado con ceros, que es como el SIAGIE lo genera. Solo lo
+-- cambia administración.
+alter table estudiantes add column if not exists codigo_siagie text
+  check (codigo_siagie is null or codigo_siagie ~ '^[0-9]{14}$');
+
+create or replace function public.proteger_codigo_siagie()
+returns trigger language plpgsql set search_path = '' as $$
+begin
+  if new.codigo_siagie is distinct from old.codigo_siagie
+     and public.rol_actual() not in ('admin', 'secretaria')
+     and coalesce(auth.role(), '') <> 'service_role' then
+    raise exception 'Solo administración puede cambiar el código del estudiante.';
+  end if;
+  return new;
+end;
+$$;
+create trigger estudiantes_codigo_siagie
+  before update of codigo_siagie on estudiantes
+  for each row execute function public.proteger_codigo_siagie();
+
+-- El informe de progreso separa las tardanzas justificadas de las injustificadas.
+alter table asistencias drop constraint if exists asistencias_estado_check;
+alter table asistencias add constraint asistencias_estado_check
+  check (estado in ('asistio', 'tardanza', 'tardanza_justificada', 'falta_justificada', 'falta_injustificada'));
+
+-- El padre ve la asistencia de su hijo (informe de progreso y portal).
+create policy "estudiante_ve_su_asistencia" on asistencias for select
+  using (matricula_id in (
+    select m.id from matriculas m join estudiantes e on e.id = m.estudiante_id where e.user_id = auth.uid()
+  ));
+
+-- El estudiante solo registra pagos por validar, de su propia matrícula y cuotas.
+alter policy "estudiante_crea_pagos" on pagos
+  with check (
+    estado = 'validando'
+    and validado_por is null
+    and fecha_validacion is null
+    and matricula_id in (
+      select m.id from matriculas m join estudiantes e on e.id = m.estudiante_id
+      where e.user_id = auth.uid()
+    )
+    and (cuota_id is null or cuota_id in (select c.id from cuotas c where c.matricula_id = pagos.matricula_id))
+  );
+
+-- Desde el navegador solo se actualizan estas columnas; lo demás pasa por
+-- las rutas del servidor (service role).
+revoke update on cuotas from anon, authenticated;
+grant update (estado) on cuotas to authenticated;
+revoke update on estudiantes from anon, authenticated;
+grant update (foto_url, password_cambiado, codigo_siagie) on estudiantes to authenticated;
+
+-- Pago recibido en caja: se registra pagado y marca sus cuotas en una sola
+-- transacción. Devuelve el pago creado. (validar_pago, para los vouchers,
+-- está en la sección de comunicados.)
+create or replace function public.registrar_pago_caja(
+  p_matricula uuid,
+  p_cuotas uuid[],
+  p_monto numeric,
+  p_metodo text,
+  p_operacion text,
+  p_pagado_por text,
+  p_parentesco text
+)
+returns setof public.pagos
+language plpgsql security invoker set search_path = '' as $$
+declare
+  v_pago public.pagos;
+begin
+  if public.rol_actual() not in ('admin', 'secretaria') then
+    raise exception 'No tienes permiso para registrar pagos.';
+  end if;
+  if coalesce(array_length(p_cuotas, 1), 0) = 0 or p_monto is null or p_monto <= 0 then
+    raise exception 'Elige al menos una cuota con monto.';
+  end if;
+  if (select count(*) from public.cuotas
+       where id = any(p_cuotas) and matricula_id = p_matricula and estado in ('pendiente', 'vencido'))
+     <> array_length(p_cuotas, 1) then
+    raise exception 'Alguna de las cuotas ya no está pendiente. Vuelve a cargar al estudiante.';
+  end if;
+
+  insert into public.pagos (
+    matricula_id, cuota_id, cuotas_ids, monto, metodo, numero_operacion, estado,
+    fecha_pago, fecha_validacion, validado_por, pagado_por, pagado_por_parentesco
+  ) values (
+    p_matricula, p_cuotas[1], p_cuotas, p_monto, p_metodo, nullif(trim(p_operacion), ''), 'pagado',
+    now(), now(), auth.uid(), nullif(trim(p_pagado_por), ''), p_parentesco
+  )
+  returning * into v_pago;
+
+  update public.cuotas set estado = 'pagado' where id = any(p_cuotas);
+
+  return next v_pago;
+end;
+$$;
+revoke execute on function public.registrar_pago_caja(uuid, uuid[], numeric, text, text, text, text) from public, anon;
+grant execute on function public.registrar_pago_caja(uuid, uuid[], numeric, text, text, text, text) to authenticated;
+
+-- Las fotos se muestran por su URL pública; listar el bucket solo puede
+-- cada estudiante (su carpeta) y administración.
+alter policy "perfiles_select_todos" on storage.objects
+  using (
+    bucket_id = 'perfiles'
+    and ((storage.foldername(name))[1] = auth.uid()::text or public.rol_actual() in ('admin', 'secretaria'))
+  );
+
+-- ============================================================
 -- NOTAS POR COMPETENCIA (formato SIAGIE)  (agregado)
 -- Cada curso (área) trae sus competencias del Currículo Nacional y el
 -- docente califica cada una: nivel de logro (AD/A/B/C) + conclusión
@@ -1119,8 +1302,8 @@ alter table public.notas_curso
   add constraint notas_curso_unica unique (matricula_id, curso, competencia, bimestre);
 
 -- ============================================================
--- COMUNICADOS Y AGENDA, ASISTENCIA PARA PADRES Y MOTIVO DE
--- RECHAZO DEL VOUCHER  (agregado)
+-- COMUNICADOS Y AGENDA, MOTIVO DE RECHAZO DEL VOUCHER  (agregado el
+-- 20 de octubre)
 -- ============================================================
 
 -- Comunicados: dirección y secretaría escriben a todo el colegio, a un
@@ -1140,6 +1323,8 @@ create table if not exists comunicados (
 );
 create index if not exists idx_comunicados_fecha on comunicados(created_at desc);
 create index if not exists idx_comunicados_evento on comunicados(fecha_evento) where fecha_evento is not null;
+create index if not exists idx_comunicados_aula on comunicados(aula_id) where aula_id is not null;
+create index if not exists idx_comunicados_autor on comunicados(autor_id);
 
 -- Quién lo publicó lo pone la base de datos (no se puede falsear).
 create or replace function public.comunicados_autor()
@@ -1203,50 +1388,45 @@ create policy "estudiante_ve_comunicados" on comunicados for select
 create or replace trigger auditoria_comunicados after insert or update or delete on public.comunicados
   for each row execute function public.registrar_auditoria();
 
--- El padre ve la asistencia de su hijo(a).
-drop policy if exists "estudiante_ve_su_asistencia" on asistencias;
-create policy "estudiante_ve_su_asistencia" on asistencias for select
-  using (public.rol_actual() = 'estudiante' and matricula_id in (
-    select m.id from matriculas m
-    join estudiantes e on e.id = m.estudiante_id
-    where e.user_id = auth.uid()
-  ));
-
 -- Motivo del rechazo de un voucher (lo lee el padre).
 alter table pagos add column if not exists motivo_rechazo text;
 alter table pagos drop constraint if exists pagos_motivo_rechazo_check;
 alter table pagos add constraint pagos_motivo_rechazo_check
   check (motivo_rechazo is null or char_length(motivo_rechazo) between 5 and 300);
 
--- Validar o rechazar un voucher en un solo paso: el pago y sus cuotas
--- cambian juntos o no cambia nada. Solo admin y secretaria, y solo si el
--- voucher sigue "validando" (evita revisarlo dos veces).
-create or replace function public.resolver_pago(p_pago uuid, p_aprobar boolean, p_motivo text default null)
-returns void language plpgsql set search_path = public as $$
+-- Validar o rechazar un voucher: el pago y sus cuotas cambian juntos o no
+-- cambia nada, y solo si sigue "validando" (no se revisa dos veces). Al
+-- rechazar se exige el motivo. Reemplaza a validar_pago(uuid, boolean).
+drop function if exists public.validar_pago(uuid, boolean);
+create or replace function public.validar_pago(p_pago uuid, p_aprobar boolean, p_motivo text default null)
+returns void language plpgsql security invoker set search_path = '' as $$
 declare
-  v_cuotas uuid[];
+  v_ids uuid[];
 begin
   if public.rol_actual() not in ('admin', 'secretaria') then
-    raise exception 'No autorizado.';
+    raise exception 'No tienes permiso para validar pagos.';
   end if;
   if not p_aprobar and char_length(coalesce(trim(p_motivo), '')) < 5 then
-    raise exception 'Escribe el motivo del rechazo.';
+    raise exception 'Escribe el motivo del rechazo (mínimo 5 letras).';
   end if;
 
-  update pagos
+  update public.pagos
      set estado = case when p_aprobar then 'pagado' else 'rechazado' end,
          motivo_rechazo = case when p_aprobar then null else trim(p_motivo) end,
          fecha_validacion = now(),
          validado_por = auth.uid()
    where id = p_pago and estado = 'validando'
-  returning coalesce(nullif(cuotas_ids, '{}'), array_remove(array[cuota_id], null)) into v_cuotas;
+  returning coalesce(nullif(cuotas_ids, '{}'), array_remove(array[cuota_id], null)) into v_ids;
   if not found then
-    raise exception 'Este voucher ya fue revisado.';
+    raise exception 'Este pago ya fue validado o rechazado.';
   end if;
 
-  update cuotas
-     set estado = case when p_aprobar then 'pagado' else 'pendiente' end
-   where id = any(v_cuotas);
-end $$;
-revoke execute on function public.resolver_pago(uuid, boolean, text) from public, anon;
-grant execute on function public.resolver_pago(uuid, boolean, text) to authenticated;
+  if p_aprobar then
+    update public.cuotas set estado = 'pagado' where id = any(v_ids) and estado <> 'pagado';
+  else
+    update public.cuotas set estado = 'pendiente' where id = any(v_ids) and estado = 'validando';
+  end if;
+end;
+$$;
+revoke execute on function public.validar_pago(uuid, boolean, text) from public, anon;
+grant execute on function public.validar_pago(uuid, boolean, text) to authenticated;

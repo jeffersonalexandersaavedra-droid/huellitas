@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Download } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { todasLasFilas } from "@/lib/consultas";
-import { ESTADOS_ASISTENCIA, CLAVES_ASISTENCIA, totalesVacios, porcentajeAsistencia } from "@/lib/asistencia";
+import { ESTADOS_ASISTENCIA, CLAVES_ASISTENCIA, LEYENDA_ASISTENCIA, totalesVacios, porcentajeAsistencia } from "@/lib/asistencia";
 import { descargarExcel } from "@/lib/excel";
 import { MESES, hoyISO, formatFecha } from "@/lib/fecha";
 import { inputClass } from "@/lib/ui";
@@ -152,7 +152,7 @@ export default function AsistenciaAdmin({ aulas, anio }) {
         subtitulos: [`${titulo} · ${aula}`],
         columnas,
         filas,
-        pie: [CLAVES_ASISTENCIA.map((k) => `${ESTADOS_ASISTENCIA[k].corto} = ${ESTADOS_ASISTENCIA[k].label}`).join(" · ")],
+        pie: [LEYENDA_ASISTENCIA],
       },
     ]);
   }

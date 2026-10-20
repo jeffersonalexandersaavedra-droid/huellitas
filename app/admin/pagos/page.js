@@ -44,16 +44,10 @@ export default async function PagosPage({ searchParams }) {
       />
     );
   } else {
-    const [
-      {
-        data: { user },
-      },
-      anioActivo,
-    ] = await Promise.all([supabase.auth.getUser(), obtenerAnioActivo(supabase)]);
+    const anioActivo = await obtenerAnioActivo(supabase);
     contenido = (
       <RegistrarPagoCaja
         estudiantes={await estudiantesMatriculados(supabase, anioActivo?.id)}
-        usuarioId={user.id}
         anio={anioActivo?.anio}
         configurado={nubefactConfigurado()}
         consultaHabilitada={Boolean(process.env.DECOLECTA_TOKEN)}

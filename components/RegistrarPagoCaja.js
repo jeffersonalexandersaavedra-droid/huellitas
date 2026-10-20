@@ -18,7 +18,7 @@ const METODOS_CAJA = ["efectivo", "yape", "plin", "transferencia", "deposito"];
 // Pago recibido en dirección/secretaría. Se cobran las pensiones en orden
 // (desde la más antigua), queda registrado como pagado al instante y se
 // ofrece emitir su comprobante a nombre de quien pagó.
-export default function RegistrarPagoCaja({ estudiantes, usuarioId, anio, configurado, consultaHabilitada }) {
+export default function RegistrarPagoCaja({ estudiantes, anio, configurado, consultaHabilitada }) {
   const supabase = createClient();
   const [seleccion, setSeleccion] = useState(null);
   const [cuotas, setCuotas] = useState([]);
@@ -63,41 +63,29 @@ export default function RegistrarPagoCaja({ estudiantes, usuarioId, anio, config
     cargar(estudiante);
   }
 
+  // El pago y sus cuotas se guardan juntos en la base de datos
+  // (registrar_pago_caja): o se registra todo o nada.
   async function registrar(event) {
     event.preventDefault();
-    if (!aCobrar.length) return;
+    if (!aCobrar.length || guardando) return;
     setGuardando(true);
     setMensaje(null);
 
-    const ahora = new Date().toISOString();
-    const ids = aCobrar.map((c) => c.id);
     const apoderado = apoderados.find((a) => `${a.nombres} ${a.apellidos}` === pagadoPor);
-
-    const { data: pago, error: pagoError } = await supabase
-      .from("pagos")
-      .insert({
-        matricula_id: seleccion.matriculaId,
-        cuota_id: ids[0],
-        cuotas_ids: ids,
-        monto: total,
-        metodo,
-        numero_operacion: operacion.trim() || null,
-        estado: "pagado",
-        fecha_pago: ahora,
-        fecha_validacion: ahora,
-        validado_por: usuarioId,
-        pagado_por: pagadoPor.trim() || null,
-        pagado_por_parentesco: apoderado?.parentesco ?? null,
+    const { data: pago, error } = await supabase
+      .rpc("registrar_pago_caja", {
+        p_matricula: seleccion.matriculaId,
+        p_cuotas: aCobrar.map((c) => c.id),
+        p_monto: total,
+        p_metodo: metodo,
+        p_operacion: operacion,
+        p_pagado_por: pagadoPor,
+        p_parentesco: apoderado?.parentesco ?? null,
       })
       .select("id, monto, metodo, fecha_pago, cuota_id, cuotas_ids, pagado_por")
       .single();
 
-    const { error: cuotasError } = pagoError
-      ? { error: null }
-      : await supabase.from("cuotas").update({ estado: "pagado" }).in("id", ids);
-
     setGuardando(false);
-    const error = pagoError || cuotasError;
     if (error) {
       setMensaje({ tipo: "error", texto: `No se pudo registrar: ${error.message}` });
       return;
