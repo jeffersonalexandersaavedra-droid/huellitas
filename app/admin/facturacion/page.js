@@ -11,6 +11,7 @@ import { obtenerAnioActivo, estudiantesMatriculados, apoderadosDe, filasPorIds }
 import { nubefactConfigurado } from "@/lib/nubefact";
 import { enlacesDeArchivos } from "@/lib/emision";
 import { cuotasDelPago } from "@/lib/cuentas";
+import { usuarioSesion } from "@/lib/sesion";
 import { hoyISO } from "@/lib/fecha";
 
 export const metadata = { title: "Facturación" };
@@ -163,10 +164,11 @@ async function contenidoDe(activa, supabase, { mes, dia, esAdmin, configurado, c
 }
 
 export default async function FacturacionPage({ searchParams }) {
-  const [{ tab, mes: mesParam, dia: diaParam }, supabase] = await Promise.all([searchParams, createClient()]);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const [{ tab, mes: mesParam, dia: diaParam }, supabase, user] = await Promise.all([
+    searchParams,
+    createClient(),
+    usuarioSesion(),
+  ]);
   const esAdmin = user?.app_metadata?.role === "admin";
   const secciones = SECCIONES.filter((s) => !s.soloAdmin || esAdmin);
   const activa = secciones.find((s) => s.id === tab)?.id ?? "pendientes";

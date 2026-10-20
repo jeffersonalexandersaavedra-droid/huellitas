@@ -1,7 +1,8 @@
 import Image from "next/image";
 import { FolderOpen } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { docenteActual, enlaceDriveDocentes } from "@/lib/consultas";
+import { enlaceDriveDocentes } from "@/lib/consultas";
+import { docenteActual } from "@/lib/sesion";
 import LogoutButton from "@/components/LogoutButton";
 import Pestanas from "@/components/Pestanas";
 import Avatar from "@/components/Avatar";
@@ -18,7 +19,7 @@ const SECCIONES = [
 export default async function DocenteLayout({ children }) {
   const supabase = await createClient();
   const [docente, driveUrl] = await Promise.all([
-    docenteActual(supabase),
+    docenteActual(),
     enlaceDriveDocentes(supabase),
   ]);
 

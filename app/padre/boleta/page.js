@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { estudianteActual, matriculaVigente, informeDeProgreso } from "@/lib/consultas";
+import { informeDeProgreso } from "@/lib/consultas";
+import { matriculaActual } from "@/lib/sesion";
 import ImprimirButton from "@/components/ImprimirButton";
 import AvisoVacio from "@/components/AvisoVacio";
 import InformeProgreso from "@/components/InformeProgreso";
@@ -11,9 +12,7 @@ export const metadata = { title: "Boleta preventiva" };
 // Boleta preventiva: vista previa del Informe de progreso con las notas de
 // los bimestres ya iniciados. No depende de los pagos (ver lib/bimestres.js).
 export default async function BoletaPreventivaPage() {
-  const supabase = await createClient();
-  const estudiante = await estudianteActual(supabase);
-  const matricula = estudiante ? await matriculaVigente(supabase, estudiante.id, "id") : null;
+  const [supabase, matricula] = await Promise.all([createClient(), matriculaActual()]);
   const informe = matricula ? await informeDeProgreso(supabase, matricula.id) : null;
 
   if (!informe) {

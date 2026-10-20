@@ -4,20 +4,14 @@ import UsuariosManager from "@/components/UsuariosManager";
 import CursosManager from "@/components/CursosManager";
 import AuditoriaLista from "@/components/AuditoriaLista";
 import { ROLES_PERSONAL } from "@/lib/roles";
+import { usuarioSesion } from "@/lib/sesion";
 
 export const metadata = { title: "Configuración" };
 
 export default async function ConfiguracionPage() {
   const supabase = await createClient();
-  const [
-    {
-      data: { user },
-    },
-    { data: cursos },
-    { data: lista },
-    { data: auditoria },
-  ] = await Promise.all([
-    supabase.auth.getUser(),
+  const [user, { data: cursos }, { data: lista }, { data: auditoria }] = await Promise.all([
+    usuarioSesion(),
     supabase
       .from("cursos")
       .select("id, nombre, nivel, activo, competencias")

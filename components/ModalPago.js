@@ -172,8 +172,8 @@ export default function ModalPago({ metodo: metodoInicial, cuotas, matriculaId, 
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState("");
 
-  const puedeEnviar =
-    Boolean(voucher) && numeroOperacion.replace(/\D/g, "").length >= 6 && Number(monto) > 0 && confirmado;
+  // El número de operación es opcional: administración revisa cada voucher.
+  const puedeEnviar = Boolean(voucher) && Number(monto) > 0 && confirmado;
 
   async function enviar() {
     if (!puedeEnviar || enviando) return;
@@ -189,7 +189,7 @@ export default function ModalPago({ metodo: metodoInicial, cuotas, matriculaId, 
           monto: Number(monto),
           metodo,
           banco: cuentaDe(metodo, banco).banco ?? null,
-          numero_operacion: numeroOperacion,
+          numero_operacion: numeroOperacion.trim() || null,
           pagado_por: pagador ? `${pagador.nombres} ${pagador.apellidos}` : null,
           pagado_por_parentesco: pagador?.parentesco ?? null,
         },
@@ -236,7 +236,7 @@ export default function ModalPago({ metodo: metodoInicial, cuotas, matriculaId, 
           <div className="mt-3 space-y-3">
             <SelectorApoderado apoderados={apoderados} value={pagadorIdx} onChange={setPagadorIdx} />
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-stone-600">Número de operación</span>
+              <span className="mb-1 block text-xs font-medium text-stone-600">Número de operación (opcional)</span>
               <input
                 type="text"
                 inputMode="numeric"

@@ -1,13 +1,10 @@
 import Image from "next/image";
-import { createClient } from "@/lib/supabase/server";
-import { estudianteActual, matriculaVigente } from "@/lib/consultas";
+import { estudianteActual, matriculaActual } from "@/lib/sesion";
 import PadreUserMenu from "@/components/PadreUserMenu";
 
 // El proxy ya garantiza que aquí solo entran cuentas de estudiante.
 export default async function PadreLayout({ children }) {
-  const supabase = await createClient();
-  const estudiante = await estudianteActual(supabase);
-  const matricula = estudiante ? await matriculaVigente(supabase, estudiante.id) : null;
+  const [estudiante, matricula] = await Promise.all([estudianteActual(), matriculaActual()]);
 
   return (
     <div className="flex min-h-dvh flex-col bg-huellitas-cream print:bg-white">

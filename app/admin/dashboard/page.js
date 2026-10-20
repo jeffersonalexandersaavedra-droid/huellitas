@@ -12,6 +12,7 @@ import { createClient } from "@/lib/supabase/server";
 import { estadoCuenta, montoVencido, agruparPorMatricula, formatSoles } from "@/lib/cuentas";
 import { MESES } from "@/lib/fecha";
 import { obtenerAnioActivo } from "@/lib/consultas";
+import { usuarioSesion } from "@/lib/sesion";
 
 export const metadata = { title: "Dashboard" };
 
@@ -118,12 +119,7 @@ function EstudiantesPorAula({ matriculas }) {
 
 export default async function DashboardPage() {
   const supabase = await createClient();
-  const [
-    {
-      data: { user },
-    },
-    anioActivo,
-  ] = await Promise.all([supabase.auth.getUser(), obtenerAnioActivo(supabase)]);
+  const [user, anioActivo] = await Promise.all([usuarioSesion(), obtenerAnioActivo(supabase)]);
   // Dirección ve además las incidencias que aún no ha leído.
   const esAdmin = user?.app_metadata?.role === "admin";
   const [datos, sinLeer] = await Promise.all([

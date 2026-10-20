@@ -1,13 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
-import { docenteActual, asignacionesDelDocente, areasPorNivel } from "@/lib/consultas";
+import { asignacionesDelDocente, areasPorNivel } from "@/lib/consultas";
+import { docenteActual } from "@/lib/sesion";
 import DocentePanel from "@/components/DocentePanel";
 import SinFichaDocente from "@/components/SinFichaDocente";
 
 export const metadata = { title: "Notas · Portal del docente" };
 
 export default async function DocenteNotasPage() {
-  const supabase = await createClient();
-  const docente = await docenteActual(supabase);
+  const [supabase, docente] = await Promise.all([createClient(), docenteActual()]);
   if (!docente) return <SinFichaDocente />;
 
   const [{ anio, asignaciones }, areas] = await Promise.all([

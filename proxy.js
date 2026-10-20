@@ -26,11 +26,10 @@ export async function proxy(request) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const rol = user?.app_metadata?.role;
+  // getClaims() renueva la sesión si hace falta y verifica el token aquí
+  // mismo (sin ir a Supabase en cada clic cuando hay claves asimétricas).
+  const { data } = await supabase.auth.getClaims();
+  const rol = data?.claims?.app_metadata?.role;
   if (!puedeVerRuta(rol, request.nextUrl.pathname)) {
     // Con sesión pero sin permiso: a su propio inicio; sin sesión: al login.
     return NextResponse.redirect(new URL(rutaInicio(rol) ?? "/login", request.url));

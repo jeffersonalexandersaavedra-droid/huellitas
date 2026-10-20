@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
-import { docenteActual, asignacionesDelDocente, aulasDeAsignaciones, comunicadosRecientes } from "@/lib/consultas";
+import { asignacionesDelDocente, aulasDeAsignaciones, comunicadosRecientes } from "@/lib/consultas";
+import { docenteActual } from "@/lib/sesion";
 import { opcionesDestino } from "@/lib/comunicados";
 import ComunicadosManager from "@/components/ComunicadosManager";
 import SinFichaDocente from "@/components/SinFichaDocente";
@@ -8,7 +9,7 @@ export const metadata = { title: "Comunicados · Portal del docente" };
 
 export default async function DocenteComunicadosPage() {
   const supabase = await createClient();
-  const [docente, comunicados] = await Promise.all([docenteActual(supabase), comunicadosRecientes(supabase)]);
+  const [docente, comunicados] = await Promise.all([docenteActual(), comunicadosRecientes(supabase)]);
   if (!docente) return <SinFichaDocente />;
   const { asignaciones } = await asignacionesDelDocente(supabase, docente.id);
 

@@ -3,14 +3,12 @@ import { createClient } from "@/lib/supabase/server";
 import PaginaEditor from "@/components/PaginaEditor";
 import DocumentosManager from "@/components/DocumentosManager";
 import { mergeSitio } from "@/lib/sitioDefaults";
+import { usuarioSesion } from "@/lib/sesion";
 
 export const metadata = { title: "Menú principal" };
 
 export default async function PaginaAdminPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const [supabase, user] = await Promise.all([createClient(), usuarioSesion()]);
   if (user?.app_metadata?.role !== "admin") {
     redirect("/login");
   }

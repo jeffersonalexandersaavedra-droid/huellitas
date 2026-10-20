@@ -1,13 +1,11 @@
-import { createClient } from "@/lib/supabase/server";
-import { docenteActual } from "@/lib/consultas";
+import { docenteActual } from "@/lib/sesion";
 import DocentePerfilForm from "@/components/DocentePerfilForm";
 import SinFichaDocente from "@/components/SinFichaDocente";
 
 export const metadata = { title: "Mi perfil · Portal del docente" };
 
 export default async function DocentePerfilPage() {
-  const supabase = await createClient();
-  const docente = await docenteActual(supabase);
+  const docente = await docenteActual();
   if (!docente) return <SinFichaDocente />;
 
   return (

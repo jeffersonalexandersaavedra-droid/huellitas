@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
-import { estudianteActual, matriculaVigente, areasPorNivel, comunicadosRecientes } from "@/lib/consultas";
+import { areasPorNivel, comunicadosRecientes } from "@/lib/consultas";
+import { estudianteActual, matriculaActual } from "@/lib/sesion";
 import { hoyISO, haceDias } from "@/lib/fecha";
 import { enlacesDeArchivos } from "@/lib/emision";
 import { vouchersPorCuota } from "@/lib/vouchers";
@@ -10,12 +11,11 @@ const DIAS_AVISO_NUEVO = 3;
 const DIAS_RECHAZO_VISIBLE = 45;
 
 export default async function PadrePage() {
-  const supabase = await createClient();
-
-  const estudiante = await estudianteActual(
-    supabase,
-    "id, dni, nombres, apellidos, password_cambiado, foto_url"
-  );
+  const [supabase, estudiante, matricula] = await Promise.all([
+    createClient(),
+    estudianteActual(),
+    matriculaActual(),
+  ]);
   if (!estudiante) {
     return (
       <AvisoVacio>
@@ -24,11 +24,6 @@ export default async function PadrePage() {
     );
   }
 
-  const matricula = await matriculaVigente(
-    supabase,
-    estudiante.id,
-    "id, aulas(nombre, nivel, lista_utiles_url), anios_escolares(anio)"
-  );
   if (!matricula) {
     return (
       <AvisoVacio>No tienes una matrícula activa este año. Comunícate con administración.</AvisoVacio>
