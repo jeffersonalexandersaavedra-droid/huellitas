@@ -20,9 +20,6 @@ export default async function PagosPage({ searchParams }) {
   const { tab } = await searchParams;
   const activa = tab === "caja" ? "caja" : "vouchers";
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
   let contenido;
   if (activa === "vouchers") {
@@ -43,12 +40,16 @@ export default async function PagosPage({ searchParams }) {
 
     contenido = (
       <PagosBandeja
-        pagosIniciales={(pagos ?? []).map((p) => ({ ...p, voucherUrl: enlace[rutaVoucher(p.voucher_url)] ?? null }))}
-        usuarioId={user.id}
+        pagos={(pagos ?? []).map((p) => ({ ...p, voucherUrl: enlace[rutaVoucher(p.voucher_url)] ?? null }))}
       />
     );
   } else {
-    const anioActivo = await obtenerAnioActivo(supabase);
+    const [
+      {
+        data: { user },
+      },
+      anioActivo,
+    ] = await Promise.all([supabase.auth.getUser(), obtenerAnioActivo(supabase)]);
     contenido = (
       <RegistrarPagoCaja
         estudiantes={await estudiantesMatriculados(supabase, anioActivo?.id)}

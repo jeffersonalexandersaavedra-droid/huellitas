@@ -40,6 +40,7 @@ export default function DriveDocentesCard({ urlInicial }) {
           type="url"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
+          aria-label="Enlace de la carpeta de Google Drive"
           placeholder="https://drive.google.com/drive/folders/..."
           className={inputClass}
         />

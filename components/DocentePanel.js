@@ -26,7 +26,8 @@ export default function DocentePanel({ docenteId, docente, anio, asignaciones, a
   // Áreas con competencias que el docente dicta en el aula.
   const { areas, sinCompetencias } = useMemo(() => {
     const asignados = asignaciones.filter((a) => a.aula_id === aulaId).map((a) => a.curso);
-    const delNivel = (areasPorNivel[aula?.nivel] ?? []).filter((a) => asignados.includes(a.nombre));
+    const enAula = new Set(asignados);
+    const delNivel = (areasPorNivel[aula?.nivel] ?? []).filter((a) => enAula.has(a.nombre));
     return {
       areas: delNivel,
       sinCompetencias: asignados.filter((c) => !delNivel.some((a) => a.nombre === c)).sort(),

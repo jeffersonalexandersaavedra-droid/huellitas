@@ -60,7 +60,7 @@ export default function NotasPadre({ anio, areas, notas, observaciones }) {
                 {area.competencias.map((texto, i) => {
                   const registro = delBimestre[claveNota(area.nombre, i + 1)];
                   return (
-                    <li key={i} className="py-2">
+                    <li key={texto} className="py-2">
                       <div className="flex items-start justify-between gap-3">
                         <span className="min-w-0 text-sm text-stone-600">{texto}</span>
                         <NotaBadge nota={registro?.nota} className="shrink-0" />

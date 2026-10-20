@@ -1117,3 +1117,136 @@ alter table public.notas_curso
     check (conclusion is null or char_length(conclusion) between 10 and 500),
   drop constraint notas_curso_matricula_id_curso_bimestre_key,
   add constraint notas_curso_unica unique (matricula_id, curso, competencia, bimestre);
+
+-- ============================================================
+-- COMUNICADOS Y AGENDA, ASISTENCIA PARA PADRES Y MOTIVO DE
+-- RECHAZO DEL VOUCHER  (agregado)
+-- ============================================================
+
+-- Comunicados: dirección y secretaría escriben a todo el colegio, a un
+-- nivel o a un aula; el docente, a sus aulas. Si traen fecha_evento
+-- salen también en la agenda ("Próximas fechas") del padre.
+create table if not exists comunicados (
+  id uuid primary key default gen_random_uuid(),
+  titulo text not null check (char_length(titulo) between 3 and 120),
+  mensaje text not null check (char_length(mensaje) between 3 and 2000),
+  fecha_evento date,
+  nivel text check (nivel in ('inicial', 'primaria')),
+  aula_id uuid references aulas(id) on delete cascade,
+  autor_id uuid references auth.users(id) on delete set null,
+  autor text not null default 'Dirección',
+  created_at timestamptz not null default now(),
+  constraint comunicados_un_destino check (nivel is null or aula_id is null)
+);
+create index if not exists idx_comunicados_fecha on comunicados(created_at desc);
+create index if not exists idx_comunicados_evento on comunicados(fecha_evento) where fecha_evento is not null;
+
+-- Quién lo publicó lo pone la base de datos (no se puede falsear).
+create or replace function public.comunicados_autor()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  new.autor_id := auth.uid();
+  new.autor := case public.rol_actual()
+    when 'docente' then coalesce(
+      (select 'Prof. ' || split_part(d.nombres, ' ', 1) || ' ' || split_part(d.apellidos, ' ', 1)
+         from docentes d where d.user_id = auth.uid()),
+      'Docente')
+    when 'secretaria' then 'Secretaría'
+    else 'Dirección'
+  end;
+  return new;
+end $$;
+revoke execute on function public.comunicados_autor() from public, anon, authenticated;
+drop trigger if exists comunicados_autor on comunicados;
+create trigger comunicados_autor before insert on comunicados
+  for each row execute function public.comunicados_autor();
+
+-- Aula y nivel de la matrícula activa del estudiante que inició sesión.
+create or replace function public.mis_aulas_estudiante()
+returns table (aula_id uuid, nivel text)
+language sql stable security definer set search_path = public as $$
+  select a.id, a.nivel
+    from estudiantes e
+    join matriculas m on m.estudiante_id = e.id and m.estado = 'activa'
+    join aulas a on a.id = m.aula_id
+   where e.user_id = auth.uid()
+$$;
+revoke execute on function public.mis_aulas_estudiante() from public, anon;
+grant execute on function public.mis_aulas_estudiante() to authenticated;
+
+alter table comunicados enable row level security;
+drop policy if exists "personal_gestiona_comunicados" on comunicados;
+create policy "personal_gestiona_comunicados" on comunicados for all
+  using (public.rol_actual() in ('admin', 'secretaria'))
+  with check (public.rol_actual() in ('admin', 'secretaria'));
+drop policy if exists "docente_ve_comunicados" on comunicados;
+create policy "docente_ve_comunicados" on comunicados for select
+  using (public.rol_actual() = 'docente' and (
+    (nivel is null and aula_id is null)
+    or aula_id in (select public.docente_aulas_ids())
+    or nivel in (select a.nivel from aulas a where a.id in (select public.docente_aulas_ids()))
+  ));
+drop policy if exists "docente_publica_comunicados" on comunicados;
+create policy "docente_publica_comunicados" on comunicados for insert
+  with check (public.rol_actual() = 'docente' and aula_id in (select public.docente_aulas_ids()));
+drop policy if exists "docente_borra_sus_comunicados" on comunicados;
+create policy "docente_borra_sus_comunicados" on comunicados for delete
+  using (public.rol_actual() = 'docente' and autor_id = auth.uid());
+drop policy if exists "estudiante_ve_comunicados" on comunicados;
+create policy "estudiante_ve_comunicados" on comunicados for select
+  using (public.rol_actual() = 'estudiante' and (
+    (nivel is null and aula_id is null)
+    or aula_id in (select m.aula_id from public.mis_aulas_estudiante() m)
+    or nivel in (select m.nivel from public.mis_aulas_estudiante() m)
+  ));
+
+create or replace trigger auditoria_comunicados after insert or update or delete on public.comunicados
+  for each row execute function public.registrar_auditoria();
+
+-- El padre ve la asistencia de su hijo(a).
+drop policy if exists "estudiante_ve_su_asistencia" on asistencias;
+create policy "estudiante_ve_su_asistencia" on asistencias for select
+  using (public.rol_actual() = 'estudiante' and matricula_id in (
+    select m.id from matriculas m
+    join estudiantes e on e.id = m.estudiante_id
+    where e.user_id = auth.uid()
+  ));
+
+-- Motivo del rechazo de un voucher (lo lee el padre).
+alter table pagos add column if not exists motivo_rechazo text;
+alter table pagos drop constraint if exists pagos_motivo_rechazo_check;
+alter table pagos add constraint pagos_motivo_rechazo_check
+  check (motivo_rechazo is null or char_length(motivo_rechazo) between 5 and 300);
+
+-- Validar o rechazar un voucher en un solo paso: el pago y sus cuotas
+-- cambian juntos o no cambia nada. Solo admin y secretaria, y solo si el
+-- voucher sigue "validando" (evita revisarlo dos veces).
+create or replace function public.resolver_pago(p_pago uuid, p_aprobar boolean, p_motivo text default null)
+returns void language plpgsql set search_path = public as $$
+declare
+  v_cuotas uuid[];
+begin
+  if public.rol_actual() not in ('admin', 'secretaria') then
+    raise exception 'No autorizado.';
+  end if;
+  if not p_aprobar and char_length(coalesce(trim(p_motivo), '')) < 5 then
+    raise exception 'Escribe el motivo del rechazo.';
+  end if;
+
+  update pagos
+     set estado = case when p_aprobar then 'pagado' else 'rechazado' end,
+         motivo_rechazo = case when p_aprobar then null else trim(p_motivo) end,
+         fecha_validacion = now(),
+         validado_por = auth.uid()
+   where id = p_pago and estado = 'validando'
+  returning coalesce(nullif(cuotas_ids, '{}'), array_remove(array[cuota_id], null)) into v_cuotas;
+  if not found then
+    raise exception 'Este voucher ya fue revisado.';
+  end if;
+
+  update cuotas
+     set estado = case when p_aprobar then 'pagado' else 'pendiente' end
+   where id = any(v_cuotas);
+end $$;
+revoke execute on function public.resolver_pago(uuid, boolean, text) from public, anon;
+grant execute on function public.resolver_pago(uuid, boolean, text) to authenticated;

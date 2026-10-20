@@ -24,8 +24,9 @@ export async function GET(request) {
       cache: "no-store",
       signal: AbortSignal.timeout(10000),
     });
+    if (!res.ok) return respuestaError("No se encontró el documento.", 404);
     const d = await res.json().catch(() => null);
-    if (!res.ok || !d) return respuestaError("No se encontró el documento.", 404);
+    if (!d) return respuestaError("No se encontró el documento.", 404);
 
     if (searchParams.get("tipo") === "dni") {
       return NextResponse.json({

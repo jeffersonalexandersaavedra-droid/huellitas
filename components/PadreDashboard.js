@@ -12,7 +12,9 @@ import MisDocentes from "@/components/MisDocentes";
 import ListaCuotas from "@/components/ListaCuotas";
 import NotasPadre from "@/components/NotasPadre";
 import MisComprobantes from "@/components/MisComprobantes";
-import { MESES, formatFecha, aFecha } from "@/lib/fecha";
+import AvisosColegio from "@/components/AvisosColegio";
+import AsistenciaPadre from "@/components/AsistenciaPadre";
+import { MESES, formatFecha, aFecha, diaYMes } from "@/lib/fecha";
 import { montoACobrar, siguienteCuotaPorPagar, formatSoles } from "@/lib/cuentas";
 
 export default function PadreDashboard({
@@ -21,10 +23,14 @@ export default function PadreDashboard({
   cuotas,
   areas,
   notas,
-  observaciones = [],
-  apoderados = [],
-  docentes = [],
-  comprobantes = [],
+  observaciones,
+  apoderados,
+  docentes,
+  comprobantes,
+  avisos,
+  agenda,
+  asistencias,
+  rechazados,
 }) {
   const router = useRouter();
   const anioActual = matricula.anios_escolares?.anio ?? new Date().getFullYear();
@@ -50,6 +56,12 @@ export default function PadreDashboard({
   // "Pagar todo" no se ve afectado, para quienes adelantan cuotas.)
   const cuotaPagableId = siguienteCuotaPorPagar(cuotas)?.id ?? null;
   const detalleTotal = cuotasPagables.map(paraPagar);
+  // Vouchers rechazados cuya cuota sigue por pagar (si ya se volvió a
+  // enviar o se pagó, el aviso desaparece solo).
+  const porPagar = new Set(cuotasPagables.map((c) => c.id));
+  const rechazosVigentes = rechazados.filter((p) =>
+    (p.cuotas_ids?.length ? p.cuotas_ids : [p.cuota_id]).some((id) => porPagar.has(id))
+  );
   const totalPagar = detalleTotal.reduce((s, d) => s + Number(d.monto), 0);
 
   function mostrarToast(mensaje) {
@@ -103,13 +115,24 @@ export default function PadreDashboard({
         </div>
       )}
 
-      {/* PERFIL + DOCENTES */}
+      {rechazosVigentes.map((p) => (
+        <div key={p.id} role="alert" className="flex gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" strokeWidth={2} />
+          <p>
+            No pudimos aceptar el voucher que enviaste el {diaYMes(p.fecha_pago)} ({formatSoles(p.monto)}).
+            {p.motivo_rechazo && <> Motivo: <b>{p.motivo_rechazo}</b>.</>} Vuelve a enviarlo desde la cuota.
+          </p>
+        </div>
+      ))}
+
+      {/* PERFIL + AVISOS + DOCENTES */}
       <PerfilEstudiante
         estudiante={estudiante}
         aula={matricula.aulas?.nombre}
         anio={anioActual}
         listaUtilesUrl={matricula.aulas?.lista_utiles_url}
       />
+      <AvisosColegio avisos={avisos} agenda={agenda} />
       <MisDocentes docentes={docentes} aula={matricula.aulas?.nombre} />
 
       {/* ESTADO DE CUENTA + PAGAR TODO */}
@@ -180,6 +203,8 @@ export default function PadreDashboard({
       </section>
 
       <MisComprobantes comprobantes={comprobantes} />
+
+      <AsistenciaPadre registros={asistencias} />
 
       <NotasPadre anio={anioActual} areas={areas} notas={notas} observaciones={observaciones} />
 

@@ -19,6 +19,7 @@ export default function LoginPage() {
           alt="I.E.P. Huellitas"
           fill
           priority
+          sizes="(min-width: 1024px) 60vw, 50vw"
           className="object-cover object-[52%_30%]"
         />
         <div className="absolute inset-0 bg-gradient-to-br from-huellitas-primary/95 via-huellitas-primary/80 to-huellitas-primary-dark/95" />
@@ -63,6 +64,7 @@ export default function LoginPage() {
             alt=""
             fill
             priority
+            sizes="100vw"
             className="object-cover object-[52%_30%]"
           />
           <div className="absolute inset-0 bg-gradient-to-b from-huellitas-primary/95 to-huellitas-primary-dark/95" />

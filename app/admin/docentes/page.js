@@ -7,28 +7,21 @@ export const metadata = { title: "Docentes" };
 
 export default async function DocentesPage() {
   const supabase = await createClient();
-
   const anioActivo = await obtenerAnioActivo(supabase);
 
-  const { data: docentes } = await supabase
-    .from("docentes")
-    .select("id, dni, nombres, apellidos, email, telefono, activo")
-    .order("apellidos", { ascending: true });
-
-  const aulas = await aulasDelAnio(supabase, anioActivo?.id);
-
-  const { data: asignaciones } = await supabase
-    .from("docente_asignaciones")
-    .select("id, docente_id, aula_id, curso, aulas(nombre, nivel)")
-    .eq("anio_escolar_id", anioActivo?.id ?? "");
-
-  const { data: cursos } = await supabase
-    .from("cursos")
-    .select("id, nombre, nivel, activo")
-    .eq("activo", true)
-    .order("nombre", { ascending: true });
-
-  const driveUrl = await enlaceDriveDocentes(supabase);
+  const [{ data: docentes }, aulas, { data: asignaciones }, { data: cursos }, driveUrl] = await Promise.all([
+    supabase
+      .from("docentes")
+      .select("id, dni, nombres, apellidos, email, telefono, activo")
+      .order("apellidos", { ascending: true }),
+    aulasDelAnio(supabase, anioActivo?.id),
+    supabase
+      .from("docente_asignaciones")
+      .select("id, docente_id, aula_id, curso, aulas(nombre, nivel)")
+      .eq("anio_escolar_id", anioActivo?.id ?? ""),
+    supabase.from("cursos").select("id, nombre, nivel, activo").eq("activo", true).order("nombre", { ascending: true }),
+    enlaceDriveDocentes(supabase),
+  ]);
 
   return (
     <div className="mx-auto max-w-4xl">

@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ExternalLink, RefreshCw, Ban, Search, FileText } from "lucide-react";
-import ExportarExcelButton from "@/components/ExportarExcelButton";
 import AvisoVacio from "@/components/AvisoVacio";
 import Campo from "@/components/Campo";
 import Modal from "@/components/Modal";
@@ -17,18 +16,20 @@ import {
   DIAS_COMUNICACION_BAJA,
   numeroComprobante,
   enlaceComprobante,
-  hojaRegistroVentas,
-  hojaArqueo,
-  redondear,
   solicitarAccion,
 } from "@/lib/facturacion";
 
-const VIGENTE = (c) => c.estado !== "anulado" && c.estado !== "rechazado";
-const PLURALES = { boleta: "Boletas", factura: "Facturas", nota_credito: "Notas de crédito", ticket: "Tickets" };
+const FILTROS = [
+  { valor: "", label: "Todos" },
+  { valor: "boleta", label: "Boletas" },
+  { valor: "factura", label: "Facturas" },
+  { valor: "ticket", label: "Tickets" },
+  { valor: "nota_credito", label: "Notas de crédito" },
+];
 
-// Comprobantes del mes con sus acciones (ver, actualizar estado, anular) y
-// los reportes: registro de ventas del mes y arqueo de caja de un día.
-export default function ComprobantesEmitidos({ comprobantes, delDia, mes, dia, conNota, esAdmin }) {
+// Comprobantes del mes con lo que se puede hacer con cada uno: verlo o
+// imprimirlo, actualizar su estado en SUNAT y anularlo (solo admin).
+export default function ComprobantesEmitidos({ comprobantes, mes, esAdmin }) {
   const router = useRouter();
   const [tipo, setTipo] = useState("");
   const [busqueda, setBusqueda] = useState("");
@@ -37,7 +38,6 @@ export default function ComprobantesEmitidos({ comprobantes, delDia, mes, dia, c
   const [resultado, setResultado] = useState(null);
   const [error, setError] = useState("");
 
-  const anuladosConNota = useMemo(() => new Set(conNota), [conNota]);
   const visibles = useMemo(
     () =>
       comprobantes.filter(
@@ -46,17 +46,8 @@ export default function ComprobantesEmitidos({ comprobantes, delDia, mes, dia, c
     [comprobantes, tipo, busqueda]
   );
 
-  const totales = ["boleta", "factura", "nota_credito", "ticket"].map((t) => {
-    const lista = comprobantes.filter((c) => c.tipo === t && (t === "nota_credito" ? c.estado !== "rechazado" : VIGENTE(c)));
-    return { tipo: t, cantidad: lista.length, monto: redondear(lista.reduce((s, c) => s + Number(c.total), 0)) };
-  });
-
-  function irA(cambios) {
-    const params = new URLSearchParams({ tab: "emitidos", mes, dia, ...cambios });
-    router.push(`/admin/facturacion?${params}`);
-  }
-
   async function ejecutar(c, cuerpo) {
+    if (procesando) return;
     setProcesando(c.id);
     setError("");
     setResultado(null);
@@ -70,65 +61,51 @@ export default function ComprobantesEmitidos({ comprobantes, delDia, mes, dia, c
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-4 rounded-xl bg-white p-4 shadow-sm lg:flex-row lg:items-end lg:justify-between">
-        <div className="flex flex-wrap items-end gap-3">
-          <Campo label="Mes">
-            <input type="month" value={mes} onChange={(e) => e.target.value && irA({ mes: e.target.value })} className={controlClass} />
-          </Campo>
-          <ExportarExcelButton
-            archivo={`registro_ventas_${mes}`}
-            hoja={hojaRegistroVentas(comprobantes, mes, anuladosConNota)}
-            label="Registro de ventas"
+      <div className="grid gap-3 rounded-xl bg-white p-4 shadow-sm sm:grid-cols-[auto_1fr] sm:items-end">
+        <Campo label="¿De qué mes?">
+          <input
+            type="month"
+            value={mes}
+            onChange={(e) => e.target.value && router.push(`/admin/facturacion?tab=emitidos&mes=${e.target.value}`)}
+            className={controlClass}
           />
-        </div>
-        <div className="flex flex-wrap items-end gap-3">
-          <Campo label="Arqueo del día">
-            <input type="date" value={dia} max={hoyISO()} onChange={(e) => e.target.value && irA({ dia: e.target.value })} className={controlClass} />
-          </Campo>
-          <ExportarExcelButton archivo={`arqueo_${dia}`} hoja={hojaArqueo(delDia, dia)} label="Arqueo de caja" />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {totales.map((t) => (
-          <div key={t.tipo} className="rounded-xl bg-white p-4 shadow-sm">
-            <p className="text-xs text-stone-500">
-              {PLURALES[t.tipo]} · {t.cantidad}
-            </p>
-            <p className="mt-1 font-display text-xl font-semibold text-huellitas-ink">
-              {t.tipo === "nota_credito" && t.monto > 0 ? "−" : ""}
-              {formatSoles(t.monto)}
-            </p>
+        </Campo>
+        <Campo label="Buscar">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" strokeWidth={2} />
+            <input
+              type="search"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              className={`${inputClass} pl-9`}
+            />
           </div>
-        ))}
+        </Campo>
+        <div className="flex flex-wrap gap-2 sm:col-span-2" role="group" aria-label="Mostrar">
+          {FILTROS.map((f) => (
+            <button
+              key={f.valor}
+              type="button"
+              aria-pressed={tipo === f.valor}
+              onClick={() => setTipo(f.valor)}
+              className={`rounded-full border px-3 py-1 text-sm ${
+                tipo === f.valor
+                  ? "border-huellitas-primary bg-huellitas-primary text-white"
+                  : "border-stone-200 text-stone-600 hover:border-huellitas-primary/40"
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-stone-500 sm:col-span-2">Busca por nombre del cliente, del estudiante o por número (B001-25).</p>
       </div>
 
       {resultado && <AvisoComprobante resultado={resultado} onCerrar={() => setResultado(null)} />}
       {error && !anulando && <p className="rounded-lg bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
 
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" strokeWidth={2} />
-          <input
-            type="search"
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar por cliente, estudiante o número"
-            className={`${inputClass} pl-9`}
-          />
-        </div>
-        <select value={tipo} onChange={(e) => setTipo(e.target.value)} className={controlClass}>
-          <option value="">Todos los tipos</option>
-          {Object.entries(TIPOS_CORTOS).map(([valor, texto]) => (
-            <option key={valor} value={valor}>
-              {texto}
-            </option>
-          ))}
-        </select>
-      </div>
-
       {visibles.length === 0 ? (
-        <AvisoVacio icono={FileText}>No hay comprobantes en este mes.</AvisoVacio>
+        <AvisoVacio icono={FileText}>No hay comprobantes para mostrar en este mes.</AvisoVacio>
       ) : (
         <ul className="space-y-3">
           {visibles.map((c) => {
@@ -144,25 +121,19 @@ export default function ComprobantesEmitidos({ comprobantes, delDia, mes, dia, c
                     </p>
                     <p className="text-sm text-stone-600">{c.cliente_nombre}</p>
                     {c.alumno && <p className="text-xs text-stone-500">Alumno(a): {c.alumno}</p>}
-                    {c.referencia && (
-                      <p className="text-xs text-stone-500">Anula a {numeroComprobante(c.referencia)}</p>
-                    )}
-                    {c.estado === "anulado" && c.motivo && (
-                      <p className="text-xs text-stone-500">Motivo: {c.motivo}</p>
-                    )}
+                    {c.referencia && <p className="text-xs text-stone-500">Anula a {numeroComprobante(c.referencia)}</p>}
+                    {c.estado === "anulado" && c.motivo && <p className="text-xs text-stone-500">Motivo: {c.motivo}</p>}
                     {c.sunat_descripcion && c.estado !== "aceptado" && (
                       <p className="text-xs text-amber-700">{c.sunat_descripcion}</p>
                     )}
-                    {c.modo === "manual" && <p className="text-xs text-stone-400">Registrado manualmente</p>}
+                    {c.modo === "manual" && <p className="text-xs text-stone-400">Hecho en SUNAT y copiado aquí</p>}
                   </div>
                   <div className="flex flex-wrap items-center gap-2 sm:flex-col sm:items-end">
                     <b className="font-display text-lg text-huellitas-ink">
                       {c.tipo === "nota_credito" ? "−" : ""}
                       {formatSoles(c.total)}
                     </b>
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${estado?.clase}`}>
-                      {estado?.texto}
-                    </span>
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${estado?.clase}`}>{estado?.texto}</span>
                   </div>
                 </div>
 
@@ -174,7 +145,7 @@ export default function ComprobantesEmitidos({ comprobantes, delDia, mes, dia, c
                     className="flex items-center gap-1 rounded-lg border border-stone-300 px-3 py-1.5 text-xs font-medium text-stone-600 hover:bg-stone-50"
                   >
                     <ExternalLink className="h-3.5 w-3.5" strokeWidth={2} />
-                    Ver
+                    Ver o imprimir
                   </a>
                   {c.modo === "electronico" && c.estado === "pendiente" && (
                     <button
@@ -184,7 +155,7 @@ export default function ComprobantesEmitidos({ comprobantes, delDia, mes, dia, c
                       className="flex items-center gap-1 rounded-lg border border-huellitas-primary px-3 py-1.5 text-xs font-medium text-huellitas-primary hover:bg-huellitas-primary-light disabled:opacity-50"
                     >
                       <RefreshCw className="h-3.5 w-3.5" strokeWidth={2} />
-                      Actualizar estado
+                      Preguntar otra vez a SUNAT
                     </button>
                   )}
                   {anulable && (
@@ -225,6 +196,7 @@ function ModalAnular({ comprobante: c, procesando, error, onConfirmar, onCerrar 
   const [via, setVia] = useState("nota");
   const dias = Math.round((Date.parse(hoyISO()) - Date.parse(c.fecha_emision)) / 86400000);
   const bajaPosible = c.modo === "electronico" && dias <= DIAS_COMUNICACION_BAJA;
+  const opcion = "flex gap-2 rounded-lg border border-stone-200 p-3 text-sm has-[:checked]:border-huellitas-primary has-[:checked]:bg-huellitas-primary-light";
 
   return (
     <Modal
@@ -240,51 +212,48 @@ function ModalAnular({ comprobante: c, procesando, error, onConfirmar, onCerrar 
         }}
       >
         <div className="space-y-3">
-          <Campo label="Motivo" required>
-            <input
-              value={motivo}
-              onChange={(e) => setMotivo(e.target.value)}
-              maxLength={100}
-              placeholder="Ej. Error en el nombre del cliente"
-              className={inputClass}
-            />
+          <Campo label="¿Por qué se anula?" required ayuda="Ejemplo: El nombre del cliente estaba mal escrito.">
+            <input value={motivo} onChange={(e) => setMotivo(e.target.value)} maxLength={100} className={inputClass} />
           </Campo>
 
           {c.modo === "electronico" ? (
             <fieldset className="space-y-2">
-              <label className="flex gap-2 rounded-lg border border-stone-200 p-3 text-sm">
-                <input type="radio" checked={via === "nota"} onChange={() => setVia("nota")} className="mt-0.5 accent-huellitas-primary" />
-                <span>
-                  <b className="text-huellitas-ink">Nota de crédito</b>
-                  <span className="block text-xs text-stone-500">
-                    Lo correcto si el padre ya recibió el comprobante (lo ve en su portal o correo).
-                  </span>
-                </span>
-              </label>
-              <label
-                className={`flex gap-2 rounded-lg border border-stone-200 p-3 text-sm ${bajaPosible ? "" : "opacity-50"}`}
-              >
+              <legend className="mb-1 text-sm font-medium text-stone-700">¿El padre ya recibió el comprobante?</legend>
+              <label className={opcion}>
                 <input
                   type="radio"
+                  name="via-anulacion"
+                  checked={via === "nota"}
+                  onChange={() => setVia("nota")}
+                  className="mt-0.5 accent-huellitas-primary"
+                />
+                <span>
+                  <b className="text-huellitas-ink">Sí, ya lo tiene → Nota de crédito</b>
+                  <span className="block text-xs text-stone-500">Lo más común. Se crea otro documento que lo anula.</span>
+                </span>
+              </label>
+              <label className={`${opcion} ${bajaPosible ? "" : "opacity-50"}`}>
+                <input
+                  type="radio"
+                  name="via-anulacion"
                   disabled={!bajaPosible}
                   checked={via === "baja"}
                   onChange={() => setVia("baja")}
                   className="mt-0.5 accent-huellitas-primary"
                 />
                 <span>
-                  <b className="text-huellitas-ink">Comunicación de baja</b>
+                  <b className="text-huellitas-ink">No, nunca se entregó → Dar de baja</b>
                   <span className="block text-xs text-stone-500">
-                    Solo si el comprobante no fue entregado y dentro de los {DIAS_COMUNICACION_BAJA} días
-                    de emitido.
+                    Solo dentro de los {DIAS_COMUNICACION_BAJA} días de hecho el comprobante.
                   </span>
                 </span>
               </label>
             </fieldset>
           ) : (
-            <p className="text-xs text-stone-500">
+            <p className="rounded-lg bg-stone-50 p-3 text-xs text-stone-600">
               {c.modo === "manual"
-                ? "Se marcará como anulado aquí. Anúlalo también en SUNAT o en el facturador donde lo emitiste."
-                : "El ticket quedará anulado. Si era de un pago, este vuelve a «Por facturar»."}
+                ? "Aquí quedará como anulado. Recuerda anularlo también en SUNAT, donde lo hiciste."
+                : "El ticket quedará anulado. Si era de un pago, el pago vuelve a la lista de pagos sin comprobante."}
             </p>
           )}
 
@@ -297,14 +266,14 @@ function ModalAnular({ comprobante: c, procesando, error, onConfirmar, onCerrar 
             onClick={onCerrar}
             className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium text-stone-600 hover:bg-stone-50"
           >
-            Cancelar
+            No, volver
           </button>
           <button
             type="submit"
             disabled={procesando || !motivo.trim()}
             className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-50"
           >
-            {procesando ? "Anulando..." : "Anular comprobante"}
+            {procesando ? "Anulando..." : "Sí, anular"}
           </button>
         </div>
       </form>

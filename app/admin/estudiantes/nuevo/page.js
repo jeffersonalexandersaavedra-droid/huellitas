@@ -5,18 +5,11 @@ import { obtenerAnioActivo, aulasDelAnio } from "@/lib/consultas";
 export const metadata = { title: "Registrar estudiante" };
 
 export default async function NuevoEstudiantePage({ searchParams }) {
-  const { aula } = await searchParams;
-  const supabase = await createClient();
-
-  const anioActivo = await obtenerAnioActivo(supabase);
-
-  const aulas = await aulasDelAnio(supabase, anioActivo?.id);
-
-  const { data: docentes } = await supabase
-    .from("docentes")
-    .select("id, nombres, apellidos")
-    .eq("activo", true)
-    .order("apellidos", { ascending: true });
+  const [{ aula }, supabase] = await Promise.all([searchParams, createClient()]);
+  const [aulas, { data: docentes }] = await Promise.all([
+    obtenerAnioActivo(supabase).then((anio) => aulasDelAnio(supabase, anio?.id)),
+    supabase.from("docentes").select("id, nombres, apellidos").eq("activo", true).order("apellidos", { ascending: true }),
+  ]);
 
   return (
     <div className="mx-auto max-w-3xl">

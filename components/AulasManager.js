@@ -446,7 +446,12 @@ function AulaCaja({ aula, letrasUsadas, unicaEnGrado, supabase, ocupado, ejecuta
           <div className="flex flex-wrap items-center gap-2">
             {editando ? (
               <form onSubmit={cambiarSeccion} className="flex flex-wrap items-center gap-2">
-                <select value={seccion} onChange={(e) => setSeccion(e.target.value)} className={`${inputClass} w-40`}>
+                <select
+                  aria-label="Nueva sección"
+                  value={seccion}
+                  onChange={(e) => setSeccion(e.target.value)}
+                  className={`${inputClass} w-40`}
+                >
                   {opcionesSeccion.map((s) => (
                     <option key={s} value={s}>
                       Sección {s}

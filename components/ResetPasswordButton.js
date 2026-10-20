@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { KeyRound, UserPlus, RefreshCw, Check, Copy, X } from "lucide-react";
 import { PASSWORD_MIN, generarPassword, MENSAJE_PASSWORD, passwordValida } from "@/lib/validacion";
+import { pedir } from "@/lib/peticiones";
 
 // Botón para gestionar la contraseña de un estudiante o docente.
 // - tipo: "estudiante" | "docente"
@@ -27,31 +28,13 @@ export default function ResetPasswordButton({ tipo, id, tieneAcceso = true }) {
     }
     setError("");
     setLoading(true);
-    try {
-      const url = modoActivar
-        ? "/api/admin/activar-acceso"
-        : "/api/admin/cambiar-password";
-      const payload = modoActivar
-        ? { estudianteId: id, password: password.trim() }
-        : { tipo, id, password: password.trim() };
-
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "No se pudo completar la operación.");
-      } else {
-        setOk(true);
-        if (modoActivar) router.refresh();
-      }
-    } catch {
-      setError("Error de conexión.");
-    } finally {
-      setLoading(false);
-    }
+    const data = modoActivar
+      ? await pedir("/api/admin/activar-acceso", { metodo: "POST", cuerpo: { estudianteId: id, password: password.trim() } })
+      : await pedir("/api/admin/cambiar-password", { metodo: "POST", cuerpo: { tipo, id, password: password.trim() } });
+    setLoading(false);
+    if (data.error) return setError(data.error);
+    setOk(true);
+    if (modoActivar) router.refresh();
   }
 
   function copiar() {

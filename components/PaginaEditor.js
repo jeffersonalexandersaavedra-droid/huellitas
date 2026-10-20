@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Save } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -30,22 +30,35 @@ function Seccion({ titulo, children }) {
   );
 }
 
+// Aplica los cambios ({ "hero.titulo": "…", "stats.0.valor": "…" }) sobre
+// una copia del contenido guardado.
+function conCambios(contenido, cambios) {
+  const copia = structuredClone(contenido);
+  for (const [ruta, valor] of Object.entries(cambios)) {
+    const partes = ruta.split(".");
+    const campo = partes.pop();
+    partes.reduce((obj, parte) => obj[parte], copia)[campo] = valor;
+  }
+  return copia;
+}
+
+// Solo guarda en estado lo que el usuario cambió: lo demás se lee del
+// contenido que llega del servidor, así nunca se muestra una copia vieja.
 export default function PaginaEditor({ inicial }) {
   const supabase = createClient();
   const router = useRouter();
-  const [c, setC] = useState(inicial);
+  const [cambios, setCambios] = useState({});
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState("");
+  const [, iniciarTransicion] = useTransition();
+  const c = conCambios(inicial, cambios);
+  const pendientes = Object.keys(cambios).length > 0;
 
-  const upd = (sec, key, value) =>
-    setC((p) => ({ ...p, [sec]: { ...p[sec], [key]: value } }));
-  const updArr = (sec, idx, key, value) =>
-    setC((p) => ({
-      ...p,
-      [sec]: p[sec].map((it, i) => (i === idx ? { ...it, [key]: value } : it)),
-    }));
+  const upd = (sec, key, value) => setCambios((p) => ({ ...p, [`${sec}.${key}`]: value }));
+  const updArr = (sec, idx, key, value) => setCambios((p) => ({ ...p, [`${sec}.${idx}.${key}`]: value }));
 
   async function guardar() {
+    if (guardando || !pendientes) return;
     setGuardando(true);
     setMsg("");
     const { error } = await supabase
@@ -53,11 +66,13 @@ export default function PaginaEditor({ inicial }) {
       .update({ contenido: c, updated_at: new Date().toISOString() })
       .eq("id", "landing");
     setGuardando(false);
-    if (error) setMsg("Error al guardar: " + error.message);
-    else {
-      setMsg("Cambios guardados. Abre la página principal para verlos.");
+    if (error) return setMsg("Error al guardar: " + error.message);
+    setMsg("Cambios guardados. Abre la página principal para verlos.");
+    // Se limpian los cambios junto con el contenido nuevo del servidor.
+    iniciarTransicion(() => {
+      setCambios({});
       router.refresh();
-    }
+    });
   }
 
   return (
@@ -123,13 +138,13 @@ export default function PaginaEditor({ inicial }) {
 
       {/* Barra de guardar */}
       <div className="sticky bottom-4 flex items-center justify-between gap-3 rounded-xl border border-stone-200 bg-white/95 p-4 shadow-lg backdrop-blur">
-        <p className={`text-sm ${msg.startsWith("Error") ? "text-rose-600" : "text-emerald-700"}`}>
-          {msg}
+        <p className={`text-sm ${msg.startsWith("Error") ? "text-rose-600" : pendientes ? "text-amber-700" : "text-emerald-700"}`}>
+          {pendientes && !msg.startsWith("Error") ? "Tienes cambios sin guardar." : msg}
         </p>
         <button
           type="button"
           onClick={guardar}
-          disabled={guardando}
+          disabled={guardando || !pendientes}
           className="flex shrink-0 items-center gap-2 rounded-lg bg-huellitas-primary px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-huellitas-primary-dark disabled:opacity-60"
         >
           <Save className="h-4 w-4" strokeWidth={2} />

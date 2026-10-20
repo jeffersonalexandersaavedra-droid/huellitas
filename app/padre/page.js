@@ -1,8 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
-import { estudianteActual, matriculaVigente, areasPorNivel } from "@/lib/consultas";
+import { estudianteActual, matriculaVigente, areasPorNivel, comunicadosRecientes } from "@/lib/consultas";
+import { hoyISO, haceDias } from "@/lib/fecha";
 import { enlacesDeArchivos } from "@/lib/emision";
 import PadreDashboard from "@/components/PadreDashboard";
 import AvisoVacio from "@/components/AvisoVacio";
+
+const DIAS_AVISO_NUEVO = 3;
+const DIAS_RECHAZO_VISIBLE = 45;
 
 export default async function PadrePage() {
   const supabase = await createClient();
@@ -38,6 +42,10 @@ export default async function PadrePage() {
     { data: docentes },
     { data: comprobantes },
     areas,
+    avisos,
+    { data: agenda },
+    { data: asistencias },
+    { data: rechazados },
   ] = await Promise.all([
     supabase
       .from("cuotas")
@@ -55,7 +63,7 @@ export default async function PadrePage() {
       .order("bimestre", { ascending: true }),
     supabase
       .from("estudiante_apoderado")
-      .select("es_principal, apoderados(nombres, apellidos, parentesco)")
+      .select("es_principal, apoderados(id, nombres, apellidos, parentesco)")
       .eq("estudiante_id", estudiante.id)
       .order("es_principal", { ascending: false }),
     supabase.rpc("mis_docentes"),
@@ -65,8 +73,24 @@ export default async function PadrePage() {
       .eq("matricula_id", matricula.id)
       .order("fecha_emision", { ascending: false }),
     areasPorNivel(supabase),
+    comunicadosRecientes(supabase, 10),
+    supabase
+      .from("comunicados")
+      .select("id, titulo, fecha_evento")
+      .gte("fecha_evento", hoyISO())
+      .order("fecha_evento", { ascending: true })
+      .limit(6),
+    supabase.from("asistencias").select("fecha, estado").eq("matricula_id", matricula.id),
+    supabase
+      .from("pagos")
+      .select("id, monto, fecha_pago, motivo_rechazo, cuota_id, cuotas_ids")
+      .eq("matricula_id", matricula.id)
+      .eq("estado", "rechazado")
+      .gte("fecha_validacion", haceDias(DIAS_RECHAZO_VISIBLE).toISOString())
+      .order("fecha_validacion", { ascending: false }),
   ]);
   const enlaces = await enlacesDeArchivos(comprobantes ?? []);
+  const desdeNuevo = haceDias(DIAS_AVISO_NUEVO);
 
   return (
     <PadreDashboard
@@ -79,6 +103,10 @@ export default async function PadrePage() {
       apoderados={(vinculos ?? []).map((v) => v.apoderados).filter(Boolean)}
       docentes={docentes ?? []}
       comprobantes={(comprobantes ?? []).map((c) => ({ ...c, archivo_url: enlaces[c.id] ?? null }))}
+      avisos={avisos.map((a) => ({ ...a, nuevo: new Date(a.created_at) > desdeNuevo }))}
+      agenda={agenda ?? []}
+      asistencias={asistencias ?? []}
+      rechazados={rechazados ?? []}
     />
   );
 }

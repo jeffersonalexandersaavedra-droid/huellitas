@@ -7,14 +7,17 @@ import { ROLES_PERSONAL } from "@/lib/roles";
 
 export const metadata = { title: "Configuración" };
 
-
 export default async function ConfiguracionPage() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const [{ data: cursos }, { data: lista }, { data: auditoria }] = await Promise.all([
+  const [
+    {
+      data: { user },
+    },
+    { data: cursos },
+    { data: lista },
+    { data: auditoria },
+  ] = await Promise.all([
+    supabase.auth.getUser(),
     supabase
       .from("cursos")
       .select("id, nombre, nivel, activo, competencias")

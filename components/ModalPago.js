@@ -23,7 +23,7 @@ const opcion = (activa) =>
 // una cuota o "Pagar todo lo pendiente" (varias). Queda en "validando"
 // hasta que administración revisa el voucher en Pagos.
 //   cuotas: [{ id, concepto, monto }]
-export default function ModalPago({ metodo: metodoInicial, cuotas, matriculaId, estudianteNombre, apoderados = [], onClose, onSubmitted }) {
+export default function ModalPago({ metodo: metodoInicial, cuotas, matriculaId, estudianteNombre, apoderados, onClose, onSubmitted }) {
   const unaCuota = cuotas.length === 1;
   const total = cuotas.reduce((s, c) => s + Number(c.monto), 0);
 

@@ -8,8 +8,8 @@ import { apoderadosDe } from "@/lib/consultas";
 import BuscadorEstudiante from "@/components/BuscadorEstudiante";
 import FormularioComprobante, { AvisoComprobante } from "@/components/FormularioComprobante";
 
-// Comprobante de otros cobros (certificados, constancias, traslados...),
-// de un estudiante o de una persona sin estudiante matriculado.
+// Cobrar otra cosa (certificados, constancias, uniformes...) y entregar su
+// comprobante, de un estudiante o de alguien que no es estudiante.
 export default function NuevoComprobante({ estudiantes, conceptos, configurado, consultaHabilitada }) {
   const router = useRouter();
   // undefined: aún sin elegir · null: venta sin estudiante
@@ -35,17 +35,17 @@ export default function NuevoComprobante({ estudiantes, conceptos, configurado, 
       {resultado && <AvisoComprobante resultado={resultado} onCerrar={() => setResultado(null)} />}
 
       <div className="rounded-xl bg-white p-5 shadow-sm">
-        <BuscadorEstudiante estudiantes={estudiantes} onElegir={elegir} label="¿De qué estudiante es el cobro?" />
+        <BuscadorEstudiante estudiantes={estudiantes} onElegir={elegir} label="¿De qué estudiante es?" />
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm">
           <p className="text-stone-600">
             {alumno ? (
               <>
-                Comprobante para <b className="text-huellitas-ink">{alumno.nombre}</b> · {alumno.aula}
+                Cobro de <b className="text-huellitas-ink">{alumno.nombre}</b> · {alumno.aula}
               </>
             ) : alumno === null ? (
-              "Venta sin estudiante (por ejemplo, a un exalumno o a un tercero)."
+              "Cobro a alguien que no es estudiante (por ejemplo, un exalumno)."
             ) : (
-              "Busca al estudiante o emite el comprobante sin estudiante."
+              "Busca al estudiante. Si no es de un estudiante, toca el botón de la derecha."
             )}
           </p>
           {alumno !== null && (
@@ -55,7 +55,7 @@ export default function NuevoComprobante({ estudiantes, conceptos, configurado, 
               className="flex items-center gap-1 font-medium text-huellitas-primary hover:underline"
             >
               <UserX className="h-4 w-4" strokeWidth={2} />
-              Sin estudiante
+              No es de un estudiante
             </button>
           )}
         </div>

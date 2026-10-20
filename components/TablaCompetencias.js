@@ -155,6 +155,7 @@ export default function TablaCompetencias({ area, estudiantes, notas, observacio
                                       value={conclusion}
                                       onChange={(ev) => onNota(e.matriculaId, c.clave, { conclusion: ev.target.value })}
                                       placeholder="Conclusión descriptiva (opcional)"
+                                      aria-label={`Conclusión descriptiva de ${c.etiqueta} para ${e.nombre}`}
                                       className={`mt-1.5 ${campoTexto} ${invalida ? "border-rose-400" : ""}`}
                                     />
                                     <p className={`text-right text-[11px] ${invalida || (conclusion.trim() && !registro.nota) ? "text-rose-600" : "text-stone-400"}`}>
@@ -182,6 +183,7 @@ export default function TablaCompetencias({ area, estudiantes, notas, observacio
                                 value={comentario}
                                 onChange={(ev) => onObservacion(e.matriculaId, ev.target.value)}
                                 placeholder="Comentario general sobre el estudiante"
+                                aria-label={`Comentario general del bimestre para ${e.nombre}`}
                                 className={`mt-1.5 ${campoTexto}`}
                               />
                             ) : (

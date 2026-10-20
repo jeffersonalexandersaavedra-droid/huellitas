@@ -6,6 +6,7 @@ import { FileText, Upload, Trash2, Eye, EyeOff, ExternalLink } from "lucide-reac
 import { createClient } from "@/lib/supabase/client";
 import { inputClass } from "@/lib/ui";
 import { subirDocumento } from "@/lib/archivos";
+import Campo from "@/components/Campo";
 
 const TIPOS = {
   transparencia: "Transparencia",
@@ -80,19 +81,19 @@ export default function DocumentosManager({ documentos }) {
         publicados aparecen en la página principal para descarga.
       </p>
 
-      <form onSubmit={subir} className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto_auto_auto]">
-        <input
-          type="text"
-          value={titulo}
-          onChange={(e) => setTitulo(e.target.value)}
-          placeholder="Título del documento"
-          className={inputClass}
-        />
-        <select value={tipo} onChange={(e) => setTipo(e.target.value)} className={inputClass}>
-          {Object.entries(TIPOS).map(([k, v]) => (
-            <option key={k} value={k}>{v}</option>
-          ))}
-        </select>
+      <form onSubmit={subir} className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto_auto_auto] sm:items-end">
+        <Campo label="Título del documento">
+          <input type="text" value={titulo} onChange={(e) => setTitulo(e.target.value)} className={inputClass} />
+        </Campo>
+        <Campo label="Tipo">
+          <select value={tipo} onChange={(e) => setTipo(e.target.value)} className={inputClass}>
+            {Object.entries(TIPOS).map(([k, v]) => (
+              <option key={k} value={k}>
+                {v}
+              </option>
+            ))}
+          </select>
+        </Campo>
         <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-600 hover:bg-stone-50">
           <Upload className="h-4 w-4" strokeWidth={2} />
           {archivo ? archivo.name.slice(0, 18) : "Archivo"}

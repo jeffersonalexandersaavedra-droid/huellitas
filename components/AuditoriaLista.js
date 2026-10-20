@@ -46,7 +46,7 @@ export default function AuditoriaLista({ registros }) {
           <h2 className="font-display text-lg font-semibold text-huellitas-primary">Auditoría</h2>
           <p className="text-sm text-stone-500">Quién creó, cambió o borró información (últimos registros).</p>
         </div>
-        <select value={tabla} onChange={(e) => setTabla(e.target.value)} className={controlClass}>
+        <select aria-label="Filtrar por tipo de registro" value={tabla} onChange={(e) => setTabla(e.target.value)} className={controlClass}>
           <option value="">Todo</option>
           {Object.entries(TABLAS).map(([valor, texto]) => (
             <option key={valor} value={valor}>

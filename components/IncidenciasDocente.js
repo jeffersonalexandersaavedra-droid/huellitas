@@ -45,14 +45,13 @@ export default function IncidenciasDocente({ docenteId, aulas, incidencias }) {
   return (
     <div className="space-y-6">
       <form onSubmit={enviar} className="grid gap-4 rounded-xl bg-white p-6 shadow-sm sm:grid-cols-2">
-        <Campo label="Título" required className="sm:col-span-2">
+        <Campo label="Título" required className="sm:col-span-2" ayuda="Ejemplo: Caso de agresión verbal en el recreo">
           <input
             type="text"
             required
             maxLength={120}
             value={form.titulo}
             onChange={(e) => actualizar("titulo", e.target.value)}
-            placeholder="Ej. Caso de agresión verbal en el recreo"
             className={inputClass}
           />
         </Campo>
@@ -76,13 +75,17 @@ export default function IncidenciasDocente({ docenteId, aulas, incidencias }) {
             className={inputClass}
           />
         </Campo>
-        <Campo label="Descripción" required className="sm:col-span-2">
+        <Campo
+          label="Descripción"
+          required
+          className="sm:col-span-2"
+          ayuda="Qué pasó, quiénes participaron y qué medidas se tomaron."
+        >
           <textarea
             required
             rows={6}
             value={form.descripcion}
             onChange={(e) => actualizar("descripcion", e.target.value)}
-            placeholder="Qué pasó, quiénes participaron, qué medidas se tomaron..."
             className={inputClass}
           />
         </Campo>

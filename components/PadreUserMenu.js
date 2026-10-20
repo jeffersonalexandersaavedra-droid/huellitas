@@ -19,10 +19,12 @@ export default function PadreUserMenu() {
   }
 
   return (
-    <div className="relative">
+    <div className="relative" onKeyDown={(e) => e.key === "Escape" && setOpen(false)}>
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
+        aria-label="Menú de la cuenta"
+        aria-expanded={open}
         className="flex items-center gap-1 rounded-full bg-white/10 p-2 text-white transition-colors hover:bg-white/20"
       >
         <User className="h-5 w-5" strokeWidth={2} />
@@ -31,7 +33,13 @@ export default function PadreUserMenu() {
 
       {open && (
         <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <button
+            type="button"
+            tabIndex={-1}
+            aria-label="Cerrar menú"
+            onClick={() => setOpen(false)}
+            className="fixed inset-0 z-10 cursor-default"
+          />
           <div className="absolute right-0 z-20 mt-2 w-56 overflow-hidden rounded-lg bg-white py-1 shadow-lg">
             <button
               type="button"

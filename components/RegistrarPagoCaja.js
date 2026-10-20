@@ -226,13 +226,12 @@ export default function RegistrarPagoCaja({ estudiantes, usuarioId, anio, config
                     ))}
                   </datalist>
                 </Campo>
-                <Campo label="N.° de recibo u operación">
+                <Campo label="N.° de recibo u operación (opcional)">
                   <input
                     type="text"
                     value={operacion}
                     onChange={(e) => setOperacion(e.target.value)}
                     className={inputClass}
-                    placeholder="Opcional"
                   />
                 </Campo>
               </div>

@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import { BookOpenText, ChevronDown, Send } from "lucide-react";
 import AvisoVacio from "@/components/AvisoVacio";
 import HojaReclamacion from "@/components/HojaReclamacion";
+import Campo from "@/components/Campo";
 import { inputClass } from "@/lib/ui";
+import { pedir } from "@/lib/peticiones";
 import { formatFecha } from "@/lib/fecha";
 import { TIPOS_RECLAMACION, codigoReclamacion, fechaLimite } from "@/lib/reclamaciones";
 
@@ -24,30 +26,20 @@ export default function ReclamacionesAdmin({ hojas, correoActivo }) {
   }
 
   async function responder(hoja) {
+    if (enviando) return;
     setEnviando(true);
     setMensaje(null);
-    try {
-      const res = await fetch(`/api/reclamaciones/${hoja.id}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ respuesta }),
-      });
-      const r = await res.json();
-      if (r.error) setMensaje({ tipo: "error", texto: r.error });
-      else {
-        setMensaje({
-          tipo: "ok",
-          texto: r.enviada
-            ? `Respuesta guardada y enviada a ${hoja.consumidor_email}.`
-            : `Respuesta guardada. Envíala también a ${hoja.consumidor_email} (el envío automático de correos no está configurado).`,
-        });
-        setRespuesta("");
-        router.refresh();
-      }
-    } catch {
-      setMensaje({ tipo: "error", texto: "No se pudo conectar con el servidor." });
-    }
+    const r = await pedir(`/api/reclamaciones/${hoja.id}`, { metodo: "POST", cuerpo: { respuesta } });
     setEnviando(false);
+    if (r.error) return setMensaje({ tipo: "error", texto: r.error });
+    setMensaje({
+      tipo: "ok",
+      texto: r.enviada
+        ? `Respuesta guardada y enviada a ${hoja.consumidor_email}.`
+        : `Respuesta guardada. Envíala también a ${hoja.consumidor_email} (el envío automático de correos no está configurado).`,
+    });
+    setRespuesta("");
+    router.refresh();
   }
 
   return (
@@ -115,14 +107,15 @@ export default function ReclamacionesAdmin({ hojas, correoActivo }) {
                 <HojaReclamacion hoja={h} />
                 {pendiente && (
                   <div className="space-y-2">
-                    <textarea
-                      value={respuesta}
-                      onChange={(e) => setRespuesta(e.target.value)}
-                      rows={4}
-                      maxLength={3000}
-                      placeholder="Observaciones y acciones adoptadas por el colegio"
-                      className={inputClass}
-                    />
+                    <Campo label="Respuesta del colegio" ayuda="Observaciones y acciones adoptadas por el colegio.">
+                      <textarea
+                        value={respuesta}
+                        onChange={(e) => setRespuesta(e.target.value)}
+                        rows={4}
+                        maxLength={3000}
+                        className={inputClass}
+                      />
+                    </Campo>
                     <button
                       type="button"
                       disabled={enviando || !respuesta.trim()}

@@ -1,44 +1,44 @@
-import { PlugZap } from "lucide-react";
+import { PlugZap, Receipt, PlusCircle, FolderOpen, BarChart3, Settings } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import Pestanas from "@/components/Pestanas";
+import MenuFacturacion from "@/components/MenuFacturacion";
+import GlosarioFacturacion from "@/components/GlosarioFacturacion";
 import FacturarPagos from "@/components/FacturarPagos";
 import NuevoComprobante from "@/components/NuevoComprobante";
 import ComprobantesEmitidos from "@/components/ComprobantesEmitidos";
+import ReportesFacturacion from "@/components/ReportesFacturacion";
 import SeriesComprobantes from "@/components/SeriesComprobantes";
-import {
-  obtenerAnioActivo,
-  estudiantesMatriculados,
-  apoderadosDe,
-  filasPorIds,
-} from "@/lib/consultas";
+import { obtenerAnioActivo, estudiantesMatriculados, apoderadosDe, filasPorIds } from "@/lib/consultas";
 import { nubefactConfigurado } from "@/lib/nubefact";
 import { enlacesDeArchivos } from "@/lib/emision";
 import { hoyISO } from "@/lib/fecha";
 
 export const metadata = { title: "Facturación" };
 
-const PESTANAS = [
-  { id: "pendientes", href: "/admin/facturacion", label: "Pagos por facturar" },
-  { id: "nuevo", href: "/admin/facturacion?tab=nuevo", label: "Otros cobros" },
-  { id: "emitidos", href: "/admin/facturacion?tab=emitidos", label: "Emitidos y reportes" },
-  { id: "series", href: "/admin/facturacion?tab=series", label: "Series", soloAdmin: true },
+const SECCIONES = [
+  { id: "pendientes", icono: Receipt, titulo: "Dar comprobante de un pago", texto: "Pagos cobrados que aún no tienen boleta." },
+  { id: "nuevo", icono: PlusCircle, titulo: "Cobrar otra cosa", texto: "Certificados, constancias, uniformes..." },
+  { id: "emitidos", icono: FolderOpen, titulo: "Ver los que ya entregué", texto: "Buscar, imprimir o anular." },
+  { id: "reportes", icono: BarChart3, titulo: "Reportes para el contador", texto: "Ventas del mes y cuadre de caja." },
+  { id: "series", icono: Settings, titulo: "Ajustes", texto: "Series y números de las boletas.", soloAdmin: true },
 ];
 
+const ESTADOS_COBRADOS = ["pagado", "verificado"];
 const vigente = (c) => c.tipo !== "nota_credito" && c.estado !== "rechazado" && c.estado !== "anulado";
+const idsDeCuotas = (p) => (p.cuotas_ids?.length ? p.cuotas_ids : [p.cuota_id]);
 
-// Pagos validados sin comprobante, con lo necesario para emitirlo.
+// Pagos cobrados sin comprobante, con lo necesario para emitirlo.
 async function pagosPorFacturar(supabase) {
   const { data } = await supabase
     .from("pagos")
     .select(
       "id, monto, metodo, fecha_pago, pagado_por, cuota_id, cuotas_ids, comprobantes(tipo, estado), matriculas(estudiante_id, estudiantes(nombres, apellidos), aulas(nombre), anios_escolares(anio))"
     )
-    .in("estado", ["pagado", "verificado"])
+    .in("estado", ESTADOS_COBRADOS)
     .order("fecha_pago", { ascending: false })
     .limit(200);
 
   const pagos = (data ?? []).filter((p) => !p.comprobantes.some(vigente));
-  const idsCuotas = [...new Set(pagos.flatMap((p) => (p.cuotas_ids?.length ? p.cuotas_ids : [p.cuota_id])).filter(Boolean))];
+  const idsCuotas = [...new Set(pagos.flatMap(idsDeCuotas).filter(Boolean))];
   const [cuotas, apoderados] = await Promise.all([
     filasPorIds(
       (lote) =>
@@ -50,39 +50,57 @@ async function pagosPorFacturar(supabase) {
     ),
     apoderadosDe(supabase, [...new Set(pagos.map((p) => p.matriculas?.estudiante_id).filter(Boolean))]),
   ]);
+  const cuotaPorId = new Map(cuotas.map((c) => [c.id, c]));
 
-  return pagos.map(({ comprobantes, matriculas: m, ...p }) => {
-    const ids = p.cuotas_ids?.length ? p.cuotas_ids : [p.cuota_id];
-    return {
-      ...p,
-      alumno: m?.estudiantes ? `${m.estudiantes.apellidos} ${m.estudiantes.nombres}` : "Estudiante",
-      aula: m?.aulas?.nombre ?? "—",
-      anio: m?.anios_escolares?.anio,
-      cuotas: cuotas.filter((c) => ids.includes(c.id)).sort((a, b) => (a.mes ?? 0) - (b.mes ?? 0)),
-      apoderados: apoderados.get(m?.estudiante_id) ?? [],
-    };
-  });
+  return pagos.map(({ comprobantes, matriculas: m, ...p }) => ({
+    ...p,
+    alumno: m?.estudiantes ? `${m.estudiantes.apellidos} ${m.estudiantes.nombres}` : "Estudiante",
+    aula: m?.aulas?.nombre ?? "—",
+    anio: m?.anios_escolares?.anio,
+    cuotas: idsDeCuotas(p)
+      .map((id) => cuotaPorId.get(id))
+      .filter(Boolean)
+      .sort((a, b) => (a.mes ?? 0) - (b.mes ?? 0)),
+    apoderados: apoderados.get(m?.estudiante_id) ?? [],
+  }));
+}
+
+// Solo cuántos pagos esperan comprobante (para la tarjeta del menú).
+async function cantidadPorFacturar(supabase) {
+  const { data } = await supabase
+    .from("pagos")
+    .select("id, comprobantes(tipo, estado)")
+    .in("estado", ESTADOS_COBRADOS)
+    .order("fecha_pago", { ascending: false })
+    .limit(200);
+  return (data ?? []).filter((p) => !p.comprobantes.some(vigente)).length;
 }
 
 const CAMPOS_COMPROBANTE =
   "*, referencia:referencia_id(tipo, serie, numero), matriculas(estudiantes(nombres, apellidos))";
 
-async function comprobantesEmitidos(supabase, mes, dia) {
+async function comprobantesDelMes(supabase, mes) {
   const [anio, numMes] = mes.split("-").map(Number);
   const finMes = new Date(anio, numMes, 0).getDate();
-  const [{ data: delMes }, { data: delDia }] = await Promise.all([
-    supabase
-      .from("comprobantes")
-      .select(CAMPOS_COMPROBANTE)
-      .gte("fecha_emision", `${mes}-01`)
-      .lte("fecha_emision", `${mes}-${String(finMes).padStart(2, "0")}`)
-      .order("fecha_emision", { ascending: false })
-      .order("created_at", { ascending: false }),
+  const { data } = await supabase
+    .from("comprobantes")
+    .select(CAMPOS_COMPROBANTE)
+    .gte("fecha_emision", `${mes}-01`)
+    .lte("fecha_emision", `${mes}-${String(finMes).padStart(2, "0")}`)
+    .order("fecha_emision", { ascending: false })
+    .order("created_at", { ascending: false });
+  return (data ?? []).map(({ matriculas: m, ...c }) => ({
+    ...c,
+    alumno: m?.estudiantes ? `${m.estudiantes.apellidos} ${m.estudiantes.nombres}` : null,
+  }));
+}
+
+async function datosReportes(supabase, mes, dia) {
+  const [delMes, { data: delDia }] = await Promise.all([
+    comprobantesDelMes(supabase, mes),
     supabase.from("comprobantes").select("*").eq("fecha_emision", dia),
   ]);
-
-  const lista = delMes ?? [];
-  const anulados = lista.filter((c) => c.estado === "anulado").map((c) => c.id);
+  const anulados = delMes.filter((c) => c.estado === "anulado").map((c) => c.id);
   const notas = await filasPorIds(
     (lote) =>
       supabase
@@ -93,45 +111,23 @@ async function comprobantesEmitidos(supabase, mes, dia) {
         .in("referencia_id", lote),
     anulados
   );
-  const enlaces = await enlacesDeArchivos(lista);
-
-  return {
-    comprobantes: lista.map(({ matriculas: m, ...c }) => ({
-      ...c,
-      alumno: m?.estudiantes ? `${m.estudiantes.apellidos} ${m.estudiantes.nombres}` : null,
-      archivo_url: enlaces[c.id] ?? null,
-    })),
-    delDia: delDia ?? [],
-    conNota: notas.map((n) => n.referencia_id),
-  };
+  return { delMes, delDia: delDia ?? [], conNota: notas.map((n) => n.referencia_id) };
 }
 
-export default async function FacturacionPage({ searchParams }) {
-  const { tab, mes: mesParam, dia: diaParam } = await searchParams;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const esAdmin = user?.app_metadata?.role === "admin";
-  const pestanas = PESTANAS.filter((p) => !p.soloAdmin || esAdmin);
-  const activa = pestanas.find((p) => p.id === tab)?.id ?? "pendientes";
-  const configurado = nubefactConfigurado();
-  const consultaHabilitada = Boolean(process.env.DECOLECTA_TOKEN);
-  const hoy = hoyISO();
-
-  let contenido;
+async function contenidoDe(activa, supabase, { mes, dia, esAdmin, configurado, consultaHabilitada }) {
   if (activa === "pendientes") {
-    contenido = (
-      <FacturarPagos
-        pagos={await pagosPorFacturar(supabase)}
-        configurado={configurado}
-        consultaHabilitada={consultaHabilitada}
-      />
-    );
-  } else if (activa === "nuevo") {
-    const anioActivo = await obtenerAnioActivo(supabase);
+    const pagos = await pagosPorFacturar(supabase);
+    return {
+      porFacturar: pagos.length,
+      vista: <FacturarPagos pagos={pagos} configurado={configurado} consultaHabilitada={consultaHabilitada} />,
+    };
+  }
+
+  const porFacturar = cantidadPorFacturar(supabase);
+  let vista;
+  if (activa === "nuevo") {
     const [estudiantes, { data: conceptos }] = await Promise.all([
-      estudiantesMatriculados(supabase, anioActivo?.id),
+      obtenerAnioActivo(supabase).then((anio) => estudiantesMatriculados(supabase, anio?.id)),
       supabase
         .from("conceptos_cobro")
         .select("nombre, monto_base")
@@ -139,7 +135,7 @@ export default async function FacturacionPage({ searchParams }) {
         .not("tipo", "in", "(pension,matricula)")
         .order("nombre"),
     ]);
-    contenido = (
+    vista = (
       <NuevoComprobante
         estudiantes={estudiantes}
         conceptos={conceptos ?? []}
@@ -148,46 +144,75 @@ export default async function FacturacionPage({ searchParams }) {
       />
     );
   } else if (activa === "emitidos") {
-    const mes = /^\d{4}-\d{2}$/.test(mesParam ?? "") ? mesParam : hoy.slice(0, 7);
-    const dia = /^\d{4}-\d{2}-\d{2}$/.test(diaParam ?? "") ? diaParam : hoy;
-    contenido = (
+    const comprobantes = await comprobantesDelMes(supabase, mes);
+    const enlaces = await enlacesDeArchivos(comprobantes);
+    vista = (
       <ComprobantesEmitidos
-        {...await comprobantesEmitidos(supabase, mes, dia)}
+        comprobantes={comprobantes.map((c) => ({ ...c, archivo_url: enlaces[c.id] ?? null }))}
         mes={mes}
-        dia={dia}
         esAdmin={esAdmin}
       />
     );
+  } else if (activa === "reportes") {
+    vista = <ReportesFacturacion {...await datosReportes(supabase, mes, dia)} mes={mes} dia={dia} />;
   } else {
     const { data: series } = await supabase.from("comprobante_series").select("*").order("serie");
-    contenido = <SeriesComprobantes series={series ?? []} />;
+    vista = <SeriesComprobantes series={series ?? []} />;
   }
+  return { porFacturar: await porFacturar, vista };
+}
+
+export default async function FacturacionPage({ searchParams }) {
+  const [{ tab, mes: mesParam, dia: diaParam }, supabase] = await Promise.all([searchParams, createClient()]);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const esAdmin = user?.app_metadata?.role === "admin";
+  const secciones = SECCIONES.filter((s) => !s.soloAdmin || esAdmin);
+  const activa = secciones.find((s) => s.id === tab)?.id ?? "pendientes";
+  const configurado = nubefactConfigurado();
+  const hoy = hoyISO();
+
+  const { porFacturar, vista } = await contenidoDe(activa, supabase, {
+    mes: /^\d{4}-\d{2}$/.test(mesParam ?? "") ? mesParam : hoy.slice(0, 7),
+    dia: /^\d{4}-\d{2}-\d{2}$/.test(diaParam ?? "") ? diaParam : hoy,
+    esAdmin,
+    configurado,
+    consultaHabilitada: Boolean(process.env.DECOLECTA_TOKEN),
+  });
+  const seccion = secciones.find((s) => s.id === activa);
 
   return (
-    <div className="mx-auto max-w-5xl">
-      <h1 className="font-display text-2xl font-semibold text-huellitas-ink">Facturación</h1>
-      <p className="mt-1 text-sm text-stone-500">
-        Boletas, facturas y notas de crédito electrónicas, y tickets de venta internos.
-      </p>
+    <div className="mx-auto max-w-5xl space-y-6">
+      <div>
+        <h1 className="font-display text-2xl font-semibold text-huellitas-ink">Facturación</h1>
+        <p className="mt-1 text-sm text-stone-500">
+          Aquí entregas boletas, facturas y tickets por lo que pagan los padres.
+        </p>
+      </div>
 
       {!configurado && (
-        <div className="mt-4 flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+        <div className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
           <PlugZap className="mt-0.5 h-5 w-5 shrink-0" strokeWidth={2} />
           <p>
-            La facturación electrónica aún no está conectada: las boletas y facturas se emiten en SUNAT
-            (SOL) o en tu facturador y se registran aquí con su serie, número y PDF, para que el padre
-            las vea en su portal.
+            Por ahora las boletas y facturas se hacen en la página de SUNAT (SOL). Después copias aquí su serie y
+            número para que el padre la vea en su portal. Los tickets internos sí se hacen aquí mismo.
             {esAdmin &&
-              " Para emitirlas directamente desde el sistema, contrata el proveedor (Nubefact) y agrega NUBEFACT_RUTA y NUBEFACT_TOKEN en la configuración del servidor."}
+              " Para crearlas directo desde el sistema, contrata Nubefact y agrega NUBEFACT_RUTA y NUBEFACT_TOKEN en Vercel."}
           </p>
         </div>
       )}
 
-      <div className="mt-6">
-        <Pestanas items={pestanas} activo={activa} />
-      </div>
+      <MenuFacturacion secciones={secciones} activa={activa} contador={{ pendientes: porFacturar }} />
 
-      <div className="mt-6">{contenido}</div>
+      <section aria-labelledby="seccion-facturacion">
+        <h2 id="seccion-facturacion" className="font-display text-xl font-semibold text-huellitas-primary">
+          {seccion.titulo}
+        </h2>
+        <div className="mt-4">{vista}</div>
+      </section>
+
+      <GlosarioFacturacion />
     </div>
   );
 }

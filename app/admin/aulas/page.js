@@ -7,8 +7,7 @@ export const metadata = { title: "Aulas" };
 // cada una muestra sus docentes, sus estudiantes y la lista de útiles que
 // descargan los padres. Se organizan por año escolar.
 export default async function AulasPage({ searchParams }) {
-  const { anio: anioParam } = await searchParams;
-  const supabase = await createClient();
+  const [{ anio: anioParam }, supabase] = await Promise.all([searchParams, createClient()]);
 
   const { data: anios } = await supabase
     .from("anios_escolares")

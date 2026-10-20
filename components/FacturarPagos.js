@@ -10,7 +10,7 @@ import { MESES, formatFecha } from "@/lib/fecha";
 import { formatSoles } from "@/lib/cuentas";
 import { METODOS_PAGO } from "@/lib/pagoInfo";
 
-// Pagos ya validados (caja o vouchers) que aún no tienen comprobante.
+// Pagos ya cobrados (caja o vouchers validados) que aún no tienen comprobante.
 // pagos: [{ id, monto, metodo, fecha_pago, pagado_por, alumno, aula, anio,
 //           cuotas, cuota_id, cuotas_ids, apoderados }]
 export default function FacturarPagos({ pagos, configurado, consultaHabilitada }) {
@@ -32,7 +32,7 @@ export default function FacturarPagos({ pagos, configurado, consultaHabilitada }
       {resultado && <AvisoComprobante resultado={resultado} onCerrar={() => setResultado(null)} />}
 
       {pagos.length === 0 ? (
-        <AvisoVacio icono={FileCheck2}>Todos los pagos validados ya tienen su comprobante.</AvisoVacio>
+        <AvisoVacio icono={FileCheck2}>¡Todo al día! Todos los pagos ya tienen su comprobante.</AvisoVacio>
       ) : (
         <>
           <div className="relative">
@@ -44,6 +44,7 @@ export default function FacturarPagos({ pagos, configurado, consultaHabilitada }
               type="search"
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
+              aria-label="Buscar por estudiante o aula"
               placeholder="Buscar por estudiante o aula"
               className={`${inputClass} pl-9`}
             />
@@ -59,11 +60,13 @@ export default function FacturarPagos({ pagos, configurado, consultaHabilitada }
                 >
                   <div className="min-w-0">
                     <p className="font-medium text-huellitas-ink">{p.alumno}</p>
-                    <p className="text-xs text-stone-500">
-                      {p.aula} · {meses.join(", ") || "Pago"} · {METODOS_PAGO[p.metodo] ?? p.metodo} ·{" "}
-                      {formatFecha(p.fecha_pago)}
+                    <p className="text-sm text-stone-600">
+                      Pagó {meses.join(", ") || "una cuota"} con {METODOS_PAGO[p.metodo] ?? p.metodo}
                     </p>
-                    {p.pagado_por && <p className="text-xs text-huellitas-primary">Pagó: {p.pagado_por}</p>}
+                    <p className="text-xs text-stone-500">
+                      {p.aula} · {formatFecha(p.fecha_pago)}
+                      {p.pagado_por && ` · Pagó: ${p.pagado_por}`}
+                    </p>
                   </div>
                   <div className="flex items-center justify-between gap-3 sm:justify-end">
                     <b className="font-display text-lg text-huellitas-ink">{formatSoles(p.monto)}</b>
@@ -73,7 +76,7 @@ export default function FacturarPagos({ pagos, configurado, consultaHabilitada }
                       className="flex items-center gap-2 rounded-lg bg-huellitas-primary px-4 py-2 text-sm font-medium text-white hover:bg-huellitas-primary-dark"
                     >
                       <Receipt className="h-4 w-4" strokeWidth={2} />
-                      Emitir comprobante
+                      Dar comprobante
                     </button>
                   </div>
                 </li>
@@ -85,7 +88,7 @@ export default function FacturarPagos({ pagos, configurado, consultaHabilitada }
 
       {abierto && (
         <ModalComprobante
-          titulo="Emitir comprobante"
+          titulo="Dar comprobante"
           subtitulo={`${abierto.alumno} · ${abierto.aula} · ${formatSoles(abierto.monto)}`}
           pago={abierto}
           apoderados={abierto.apoderados}

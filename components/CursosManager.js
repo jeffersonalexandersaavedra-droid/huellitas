@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { NIVELES } from "@/lib/grados";
 import { numeroCompetencia } from "@/lib/cursos";
 import { inputClass, cantidad } from "@/lib/ui";
+import Campo from "@/components/Campo";
 
 // Catálogo de cursos (áreas) por nivel con sus competencias del Currículo
 // Nacional: se asignan a los docentes, se califican por competencia y salen
@@ -64,21 +65,19 @@ export default function CursosManager({ cursos }) {
         sin competencias (por ejemplo Tutoría) no lleva notas.
       </p>
 
-      <form onSubmit={agregar} className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto_auto]">
-        <input
-          type="text"
-          value={nombre}
-          onChange={(e) => setNombre(e.target.value)}
-          placeholder="Nombre del curso"
-          className={inputClass}
-        />
-        <select value={nivel} onChange={(e) => setNivel(e.target.value)} className={inputClass}>
-          {Object.entries(NIVELES).map(([valor, etiqueta]) => (
-            <option key={valor} value={valor}>
-              {etiqueta}
-            </option>
-          ))}
-        </select>
+      <form onSubmit={agregar} className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-end">
+        <Campo label="Nombre del curso nuevo">
+          <input type="text" value={nombre} onChange={(e) => setNombre(e.target.value)} className={inputClass} />
+        </Campo>
+        <Campo label="Nivel">
+          <select value={nivel} onChange={(e) => setNivel(e.target.value)} className={inputClass}>
+            {Object.entries(NIVELES).map(([valor, etiqueta]) => (
+              <option key={valor} value={valor}>
+                {etiqueta}
+              </option>
+            ))}
+          </select>
+        </Campo>
         <button
           type="submit"
           disabled={guardando || !nombre.trim()}
@@ -148,6 +147,7 @@ export default function CursosManager({ cursos }) {
                           rows={Math.max(4, c.competencias.length * 2 + 1)}
                           value={editando.texto}
                           onChange={(e) => setEditando({ ...editando, texto: e.target.value })}
+                          aria-label={`Competencias de ${c.nombre}`}
                           placeholder="Una competencia por línea, en el orden del SIAGIE"
                           className={`${inputClass} text-sm`}
                         />
@@ -176,9 +176,9 @@ export default function CursosManager({ cursos }) {
                     ) : (
                       c.competencias.length > 0 && (
                         <ol className="mt-1.5 space-y-0.5 text-xs text-stone-500">
-                          {c.competencias.map((texto, i) => (
-                            <li key={i}>
-                              <b className="text-huellitas-primary/80">{numeroCompetencia(i + 1)}</b> {texto}
+                          {c.competencias.map((texto, posicion) => (
+                            <li key={texto}>
+                              <b className="text-huellitas-primary/80">{numeroCompetencia(posicion + 1)}</b> {texto}
                             </li>
                           ))}
                         </ol>

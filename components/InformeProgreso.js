@@ -101,7 +101,7 @@ function ListaNiveles({ areas, notas }) {
             {area.competencias.map((texto, i) => {
               const porBimestre = notas[claveNota(area.nombre, i + 1)] ?? {};
               return (
-                <li key={i} className="px-3 py-2.5">
+                <li key={texto} className="px-3 py-2.5">
                   <p className="text-sm text-huellitas-ink">{texto}</p>
                   <div className="mt-2 grid grid-cols-4 gap-1 text-center">
                     {BIMESTRES.map((b) => (
@@ -241,12 +241,12 @@ export default function InformeProgreso({ informe }) {
               <th colSpan={2} className={cabecera}>Tardanzas</th>
             </tr>
             <tr>
-              {["Justificadas", "Injustificadas", "Justificadas", "Injustificadas"].map((t, i) => (
-                <th key={i} className={`${cabecera} font-medium`}>
+              {["Inasistencias", "Tardanzas"].flatMap((grupo) => ["Justificadas", "Injustificadas"].map((t) => (
+                <th key={`${grupo}-${t}`} className={`${cabecera} font-medium`}>
                   <span className="sm:hidden">{t.slice(0, -6)}.</span>
                   <span className="hidden sm:inline">{t}</span>
                 </th>
-              ))}
+              )))}
             </tr>
           </thead>
           <tbody>

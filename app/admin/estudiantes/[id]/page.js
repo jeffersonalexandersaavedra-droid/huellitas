@@ -12,8 +12,7 @@ import { BIMESTRES } from "@/lib/cursos";
 export const metadata = { title: "Ficha del estudiante" };
 
 export default async function EstudianteDetallePage({ params }) {
-  const { id } = await params;
-  const supabase = await createClient();
+  const [{ id }, supabase] = await Promise.all([params, createClient()]);
 
   const { data: estudiante } = await supabase
     .from("estudiantes")

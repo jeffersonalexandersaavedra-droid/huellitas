@@ -23,12 +23,19 @@ npm run dev                  # http://localhost:3000
 | Carpeta | Contenido |
 | --- | --- |
 | `app/admin` | Panel de administración y secretaría (cada rol ve solo sus secciones, ver `lib/roles.js`) |
-| `app/docente` | Registro de notas por competencias, asistencia, incidencias y perfil |
-| `app/padre` | Pensiones y pagos, notas, boleta preventiva y comprobantes |
+| `app/docente` | Registro de notas por competencias, asistencia, comunicados, incidencias y perfil |
+| `app/padre` | Avisos y agenda, pensiones y pagos, asistencia, notas, boleta preventiva y comprobantes |
 | `app/api` | Rutas del servidor (cuentas, matrícula, contrato, facturación, reclamaciones) |
 | `components` | Componentes de la interfaz |
 | `lib` | Reglas y consultas compartidas (sin duplicar en las páginas) |
 | `sql_huellitas.sql` | Registro del esquema de la base de datos y sus cambios |
+
+## Base de datos siempre activa
+
+Supabase pausa los proyectos gratuitos tras 7 días sin uso. `vercel.json` programa un ping
+diario (8 a. m. de Lima) a `/api/keep-alive`, que hace una consulta mínima. Solo responde si
+la petición trae la clave `CRON_SECRET`: créala en Vercel (Settings › Environment Variables)
+con un texto largo al azar; Vercel la envía sola en cada ping.
 
 ## Notas y SIAGIE
 

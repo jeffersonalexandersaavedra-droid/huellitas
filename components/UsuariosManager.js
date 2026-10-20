@@ -7,6 +7,7 @@ import { formatFecha } from "@/lib/fecha";
 import { ROLES } from "@/lib/roles";
 import { inputClass } from "@/lib/ui";
 import { PASSWORD_MIN } from "@/lib/validacion";
+import { pedir } from "@/lib/peticiones";
 import Campo from "@/components/Campo";
 
 const FORM_VACIO = { nombre: "", email: "", password: "", rol: "secretaria" };
@@ -29,14 +30,9 @@ export default function UsuariosManager({ usuarios }) {
   async function enviar(method, payload) {
     setError("");
     setOk("");
-    const res = await fetch("/api/admin/usuarios", {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    }).catch(() => null);
-    const data = (await res?.json().catch(() => null)) ?? {};
-    if (!res?.ok) {
-      setError(data.error || "No se pudo completar la operación.");
+    const data = await pedir("/api/admin/usuarios", { metodo: method, cuerpo: payload });
+    if (data.error) {
+      setError(data.error);
       return null;
     }
     router.refresh();
@@ -45,6 +41,7 @@ export default function UsuariosManager({ usuarios }) {
 
   async function crear(event) {
     event.preventDefault();
+    if (creando) return;
     setCreando(true);
     const data = await enviar("POST", form);
     setCreando(false);

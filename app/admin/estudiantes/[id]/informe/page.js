@@ -12,9 +12,7 @@ export const metadata = { title: "Informe de progreso" };
 // ficha del estudiante: la matrícula más reciente o, desde el histórico,
 // la de un año anterior (?matricula=id).
 export default async function InformeEstudiantePage({ params, searchParams }) {
-  const { id } = await params;
-  const { matricula: matriculaId } = await searchParams;
-  const supabase = await createClient();
+  const [{ id }, { matricula: matriculaId }, supabase] = await Promise.all([params, searchParams, createClient()]);
 
   const consulta = supabase.from("matriculas").select("id").eq("estudiante_id", id);
   const { data: matricula } = await (matriculaId

@@ -64,24 +64,22 @@ export default function DocentePerfilForm({ docente }) {
           }}
           className="space-y-4 rounded-xl bg-white p-6 shadow-sm"
         >
-          <Campo label="Título o especialidad">
+          <Campo label="Título o especialidad" ayuda="Ejemplo: Lic. en Educación Primaria">
             <input
               type="text"
               maxLength={120}
               value={especialidad}
               onChange={(e) => setEspecialidad(e.target.value)}
-              placeholder="Ej. Lic. en Educación Primaria"
               className={inputClass}
             />
           </Campo>
 
-          <Campo label="Trayectoria profesional">
+          <Campo label="Trayectoria profesional" ayuda="Estudios, años de experiencia, capacitaciones, logros…">
             <textarea
               rows={6}
               maxLength={1200}
               value={bio}
               onChange={(e) => setBio(e.target.value)}
-              placeholder="Estudios, años de experiencia, capacitaciones, logros..."
               className={inputClass}
             />
           </Campo>

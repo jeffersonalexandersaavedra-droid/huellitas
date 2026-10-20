@@ -14,6 +14,7 @@ import { createClient } from "@/lib/supabase/client";
 import ResetPasswordButton from "@/components/ResetPasswordButton";
 import { inputClass } from "@/lib/ui";
 import { PASSWORD_MIN } from "@/lib/validacion";
+import { pedir } from "@/lib/peticiones";
 import Campo from "@/components/Campo";
 
 const FORM_VACIO = {
@@ -47,36 +48,23 @@ export default function DocentesManager({
 
   async function crearDocente(event) {
     event.preventDefault();
+    if (creando) return;
     setError("");
     setCredenciales(null);
     setCreando(true);
+    const data = await pedir("/api/admin/registrar-docente", { metodo: "POST", cuerpo: { docente: form } });
+    setCreando(false);
+    if (data.error) return setError(data.error);
 
-    try {
-      const res = await fetch("/api/admin/registrar-docente", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ docente: form }),
-      });
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || "No se pudo registrar al docente.");
-      } else {
-        setCredenciales({
-          dni: data.dni,
-          email: data.email,
-          password: data.password,
-          correoPropio: Boolean(form.email.trim()),
-        });
-        setForm(FORM_VACIO);
-        setExpandido(data.docente_id);
-        router.refresh();
-      }
-    } catch {
-      setError("Error de conexión. Intenta nuevamente.");
-    } finally {
-      setCreando(false);
-    }
+    setCredenciales({
+      dni: data.dni,
+      email: data.email,
+      password: data.password,
+      correoPropio: Boolean(form.email.trim()),
+    });
+    setForm(FORM_VACIO);
+    setExpandido(data.docente_id);
+    router.refresh();
   }
 
   return (
@@ -97,24 +85,22 @@ export default function DocentesManager({
             <input type="text" required value={form.apellidos}
               onChange={(e) => actualizar("apellidos", e.target.value)} className={inputClass} />
           </Campo>
-          <Campo label="DNI" required>
+          <Campo label="DNI" required ayuda="8 dígitos">
             <input type="text" inputMode="numeric" maxLength={8} required value={form.dni}
               onChange={(e) => actualizar("dni", e.target.value.replace(/\D/g, ""))}
-              className={inputClass} placeholder="8 dígitos" />
+              className={inputClass} />
           </Campo>
           <Campo label="Teléfono">
             <input type="text" value={form.telefono}
               onChange={(e) => actualizar("telefono", e.target.value)} className={inputClass} />
           </Campo>
-          <Campo label="Correo (opcional)">
+          <Campo label="Correo (opcional)" ayuda="También podrá entrar con él.">
             <input type="email" value={form.email}
-              onChange={(e) => actualizar("email", e.target.value)} className={inputClass}
-              placeholder="Opcional: también podrá entrar con él" />
+              onChange={(e) => actualizar("email", e.target.value)} className={inputClass} />
           </Campo>
-          <Campo label="Contraseña temporal" required>
+          <Campo label="Contraseña temporal" required ayuda={`Mínimo ${PASSWORD_MIN} caracteres.`}>
             <input type="text" required minLength={PASSWORD_MIN} value={form.password}
-              onChange={(e) => actualizar("password", e.target.value)} className={inputClass}
-              placeholder={`Mínimo ${PASSWORD_MIN} caracteres`} />
+              onChange={(e) => actualizar("password", e.target.value)} className={inputClass} />
           </Campo>
 
           <div className="sm:col-span-2">
@@ -196,17 +182,18 @@ function DocenteRow({
   const [cursosSel, setCursosSel] = useState([]);
   const [guardando, setGuardando] = useState(false);
   const [errorAsig, setErrorAsig] = useState("");
+  const elegidos = new Set(cursosSel);
 
   const aulaSel = aulas.find((a) => a.id === aulaId);
-  const cursosAsignadosAula = asignaciones
-    .filter((a) => a.aula_id === aulaId)
-    .map((a) => a.curso);
+  const cursosAsignadosAula = new Set(
+    asignaciones.filter((a) => a.aula_id === aulaId).map((a) => a.curso)
+  );
   // Cursos activos del catálogo para el nivel del aula, quitando los ya puestos
   const cursosDisponibles = aulaSel
     ? (cursos || [])
         .filter((c) => c.nivel === aulaSel.nivel && c.activo)
         .map((c) => c.nombre)
-        .filter((c) => !cursosAsignadosAula.includes(c))
+        .filter((c) => !cursosAsignadosAula.has(c))
     : [];
 
   function cambiarAula(id) {
@@ -322,6 +309,7 @@ function DocenteRow({
             <select
               value={aulaId}
               onChange={(e) => cambiarAula(e.target.value)}
+              aria-label="Aula donde dictará los cursos"
               className={`mt-2 ${inputClass}`}
             >
               <option value="">Selecciona un aula...</option>
@@ -360,14 +348,14 @@ function DocenteRow({
                         <label
                           key={c}
                           className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
-                            cursosSel.includes(c)
+                            elegidos.has(c)
                               ? "border-huellitas-primary bg-huellitas-primary-light text-huellitas-primary"
                               : "border-stone-200 bg-white text-stone-600"
                           }`}
                         >
                           <input
                             type="checkbox"
-                            checked={cursosSel.includes(c)}
+                            checked={elegidos.has(c)}
                             onChange={() => toggleCurso(c)}
                             className="accent-huellitas-primary"
                           />

@@ -54,6 +54,7 @@ export default async function ReportesPage() {
     const vencido = montoVencido(cs);
     const est = m.estudiantes;
     return {
+      id: m.id,
       nombre: est ? `${est.apellidos} ${est.nombres}` : "—",
       dni: est?.dni ?? "—",
       aula: m.aulas?.nombre ?? "—",
@@ -186,8 +187,8 @@ export default async function ReportesPage() {
                 </tr>
               </thead>
               <tbody>
-                {morosos.map((f, i) => (
-                  <tr key={i} className="border-b border-stone-50">
+                {morosos.map((f) => (
+                  <tr key={f.id} className="border-b border-stone-50">
                     <td className="py-3 pr-4 text-huellitas-ink">
                       {f.nombre}
                       <span className="ml-1 text-xs text-stone-400">({f.dni})</span>

@@ -1,14 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Search, Plus, Upload } from "lucide-react";
 import EstadoCuentaBadge from "@/components/EstadoCuentaBadge";
-import { coincide } from "@/lib/ui";
+import { coincide, controlClass, inputClass } from "@/lib/ui";
 
 export default function EstudiantesTable({ estudiantes }) {
-  const router = useRouter();
   const [busqueda, setBusqueda] = useState("");
   const [nivel, setNivel] = useState("todos");
   const [aula, setAula] = useState("todas");
@@ -46,10 +44,11 @@ export default function EstudiantesTable({ estudiantes }) {
           />
           <input
             type="search"
+            aria-label="Buscar estudiante por nombre o DNI"
             placeholder="Buscar por nombre o DNI..."
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
-            className="w-full rounded-lg border border-stone-300 bg-white py-2 pl-9 pr-3 text-sm text-stone-900 outline-none focus:border-huellitas-primary focus:ring-2 focus:ring-huellitas-primary/20"
+            className={`${inputClass} pl-9`}
           />
         </div>
 
@@ -73,23 +72,20 @@ export default function EstudiantesTable({ estudiantes }) {
 
       <div className="mt-4 flex flex-wrap gap-2">
         <select
+          aria-label="Nivel"
           value={nivel}
           onChange={(e) => {
             setNivel(e.target.value);
             setAula("todas");
           }}
-          className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-sm text-stone-700"
+          className={controlClass}
         >
           <option value="todos">Todos los niveles</option>
           <option value="inicial">Inicial</option>
           <option value="primaria">Primaria</option>
         </select>
 
-        <select
-          value={aula}
-          onChange={(e) => setAula(e.target.value)}
-          className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-sm text-stone-700"
-        >
+        <select aria-label="Aula" value={aula} onChange={(e) => setAula(e.target.value)} className={controlClass}>
           <option value="todas">Todas las aulas</option>
           {aulasDisponibles.map((a) => (
             <option key={a} value={a}>
@@ -99,9 +95,10 @@ export default function EstudiantesTable({ estudiantes }) {
         </select>
 
         <select
+          aria-label="Estado de cuenta"
           value={estadoCuenta}
           onChange={(e) => setEstadoCuenta(e.target.value)}
-          className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-sm text-stone-700"
+          className={controlClass}
         >
           <option value="todos">Todos los estados</option>
           <option value="al-dia">Al día</option>
@@ -129,13 +126,11 @@ export default function EstudiantesTable({ estudiantes }) {
               </tr>
             )}
             {filtrados.map((e) => (
-              <tr
-                key={e.id}
-                onClick={() => router.push(`/admin/estudiantes/${e.id}`)}
-                className="cursor-pointer border-b border-stone-50 last:border-0 hover:bg-huellitas-cream"
-              >
-                <td className="px-4 py-3 font-medium text-huellitas-ink">
-                  {e.nombres} {e.apellidos}
+              <tr key={e.id} className="border-b border-stone-50 last:border-0 hover:bg-huellitas-cream">
+                <td className="px-4 py-3 font-medium">
+                  <Link href={`/admin/estudiantes/${e.id}`} className="text-huellitas-ink hover:text-huellitas-primary hover:underline">
+                    {e.nombres} {e.apellidos}
+                  </Link>
                 </td>
                 <td className="px-4 py-3 font-mono text-stone-600">{e.dni}</td>
                 <td className="px-4 py-3 text-stone-600">{e.aula || "—"}</td>

@@ -15,10 +15,16 @@ import {
 } from "lucide-react";
 import { inputClass } from "@/lib/ui";
 import { PASSWORD_MIN, generarPassword } from "@/lib/validacion";
+import { pedir } from "@/lib/peticiones";
 import Campo from "@/components/Campo";
 
+// La clave solo identifica la tarjeta en pantalla; la API no la usa.
+let siguienteClave = 0;
+
 function apoderadoVacio(esPrincipal) {
+  siguienteClave += 1;
   return {
+    clave: siguienteClave,
     nombres: "",
     apellidos: "",
     dni: "",
@@ -37,10 +43,10 @@ function estudianteVacio() {
 export default function RegistrarEstudianteForm({ aulas, docentes, aulaInicial = "" }) {
   const router = useRouter();
 
-  const [estudiante, setEstudiante] = useState(estudianteVacio());
+  const [estudiante, setEstudiante] = useState(estudianteVacio);
   const [aulaId, setAulaId] = useState(aulaInicial);
   const [docenteId, setDocenteId] = useState("");
-  const [apoderados, setApoderados] = useState([apoderadoVacio(true)]);
+  const [apoderados, setApoderados] = useState(() => [apoderadoVacio(true)]);
   const [mostrarPassword, setMostrarPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -66,10 +72,9 @@ export default function RegistrarEstudianteForm({ aulas, docentes, aulaInicial =
   function quitarApoderado(index) {
     setApoderados((prev) => {
       const restante = prev.filter((_, i) => i !== index);
-      if (restante.length && !restante.some((a) => a.esPrincipal)) {
-        restante[0].esPrincipal = true;
-      }
-      return restante;
+      return restante.some((a) => a.esPrincipal)
+        ? restante
+        : restante.map((a, i) => (i === 0 ? { ...a, esPrincipal: true } : a));
     });
   }
 
@@ -85,34 +90,16 @@ export default function RegistrarEstudianteForm({ aulas, docentes, aulaInicial =
 
   async function handleSubmit(event) {
     event.preventDefault();
+    if (loading) return;
     setError("");
     setLoading(true);
-
-    try {
-      const response = await fetch("/api/admin/registrar-estudiante", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          estudiante,
-          matricula: { aulaId, docenteId: docenteId || null },
-          apoderados,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.error || "No se pudo registrar al estudiante.");
-        setLoading(false);
-        return;
-      }
-
-      setResultado(data);
-      setLoading(false);
-    } catch {
-      setError("Ocurrió un error de conexión. Intenta de nuevo.");
-      setLoading(false);
-    }
+    const data = await pedir("/api/admin/registrar-estudiante", {
+      metodo: "POST",
+      cuerpo: { estudiante, matricula: { aulaId, docenteId: docenteId || null }, apoderados },
+    });
+    setLoading(false);
+    if (data.error) return setError(data.error);
+    setResultado(data);
   }
 
   function handleCopiar() {
@@ -199,7 +186,7 @@ export default function RegistrarEstudianteForm({ aulas, docentes, aulaInicial =
         </h2>
 
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <Campo label="DNI">
+          <Campo label="DNI" ayuda="8 dígitos, sin espacios.">
             <input
               type="text"
               required
@@ -210,7 +197,6 @@ export default function RegistrarEstudianteForm({ aulas, docentes, aulaInicial =
                 setEstudiante((s) => ({ ...s, dni: e.target.value.replace(/\D/g, "") }))
               }
               className={inputClass}
-              placeholder="76543210"
             />
           </Campo>
 
@@ -346,7 +332,7 @@ export default function RegistrarEstudianteForm({ aulas, docentes, aulaInicial =
 
         <div className="mt-4 space-y-6">
           {apoderados.map((a, index) => (
-            <div key={index} className="rounded-lg border border-stone-200 p-4">
+            <div key={a.clave} className="rounded-lg border border-stone-200 p-4">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-medium text-huellitas-ink">
                   Apoderado {index + 1}
@@ -355,6 +341,7 @@ export default function RegistrarEstudianteForm({ aulas, docentes, aulaInicial =
                   <button
                     type="button"
                     onClick={() => quitarApoderado(index)}
+                    aria-label={`Quitar apoderado ${index + 1}`}
                     className="text-stone-400 hover:text-rose-600"
                   >
                     <Trash2 className="h-4 w-4" strokeWidth={2} />
@@ -419,13 +406,12 @@ export default function RegistrarEstudianteForm({ aulas, docentes, aulaInicial =
                     className={inputClass}
                   />
                 </Campo>
-                <Campo label="Domicilio" className="sm:col-span-2">
+                <Campo label="Domicilio" className="sm:col-span-2" ayuda="Se usa en el contrato de servicio educativo.">
                   <input
                     type="text"
                     value={a.direccion}
                     onChange={(e) => actualizarApoderado(index, "direccion", e.target.value)}
                     className={inputClass}
-                    placeholder="Se usa en el contrato de servicio educativo"
                   />
                 </Campo>
               </div>

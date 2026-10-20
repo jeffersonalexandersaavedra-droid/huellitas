@@ -16,8 +16,7 @@ const mayus = (texto) => (texto ?? "").toUpperCase();
 export async function GET(request, { params }) {
   if (!(await usuarioConRol("admin", "secretaria"))) return noAutorizado();
 
-  const { estudianteId } = await params;
-  const supabase = await createClient();
+  const [{ estudianteId }, supabase] = await Promise.all([params, createClient()]);
 
   const [{ data: estudiante }, { data: matricula }, { data: vinculos }] = await Promise.all([
     supabase

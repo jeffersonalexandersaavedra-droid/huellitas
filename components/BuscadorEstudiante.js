@@ -20,7 +20,7 @@ export default function BuscadorEstudiante({ estudiantes, onElegir, label = "Bus
 
   return (
     <div>
-      <Campo label={label}>
+      <Campo label={label} ayuda="Escribe el apellido o el DNI, por ejemplo: Saavedra o 73113177.">
         <div className="relative">
           <Search
             className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400"
@@ -30,7 +30,6 @@ export default function BuscadorEstudiante({ estudiantes, onElegir, label = "Bus
             type="search"
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Ej. Saavedra o 73113177"
             className={`${inputClass} pl-9`}
           />
         </div>

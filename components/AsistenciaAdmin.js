@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Download } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { todasLasFilas } from "@/lib/consultas";
-import { ESTADOS_ASISTENCIA, CLAVES_ASISTENCIA } from "@/lib/asistencia";
+import { ESTADOS_ASISTENCIA, CLAVES_ASISTENCIA, totalesVacios, porcentajeAsistencia } from "@/lib/asistencia";
 import { descargarExcel } from "@/lib/excel";
 import { MESES, hoyISO, formatFecha } from "@/lib/fecha";
 import { inputClass } from "@/lib/ui";
@@ -22,21 +22,13 @@ function rango(periodo, fecha, mes, anio) {
   return [`${anio}-01-01`, `${anio}-12-31`];
 }
 
-const totalesVacios = () => Object.fromEntries(CLAVES_ASISTENCIA.map((k) => [k, 0]));
-
-// % de días que el estudiante estuvo en clase (asistió o llegó tarde).
-function porcentaje(t) {
-  const total = CLAVES_ASISTENCIA.reduce((s, k) => s + t[k], 0);
-  return total ? Math.round(((t.asistio + t.tardanza) / total) * 100) : 0;
-}
-
 export default function AsistenciaAdmin({ aulas, anio }) {
   const supabase = createClient();
   const hoy = hoyISO();
   const [aulaId, setAulaId] = useState("");
   const [periodo, setPeriodo] = useState("dia");
   const [fecha, setFecha] = useState(hoy);
-  const [mes, setMes] = useState(hoy.slice(0, 7));
+  const [mes, setMes] = useState(() => hoy.slice(0, 7));
   const [registros, setRegistros] = useState([]);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
@@ -148,7 +140,7 @@ export default function AsistenciaAdmin({ aulas, anio }) {
       ]);
     } else {
       columnas = [...base, ...columnasTotales, { titulo: "% asistencia", ancho: 9, tipo: "porcentaje", vertical: true }];
-      filas = estudiantes.map((e) => [...datos(e), ...totales(e), porcentaje(e.totales)]);
+      filas = estudiantes.map((e) => [...datos(e), ...totales(e), porcentajeAsistencia(e.totales)]);
     }
 
     const etiqueta = periodo === "dia" ? fecha : periodo === "mes" ? mes : String(anio);
@@ -276,7 +268,7 @@ export default function AsistenciaAdmin({ aulas, anio }) {
                           </td>
                         ))}
                         <td className="py-2 text-right font-medium text-huellitas-ink">
-                          {porcentaje(e.totales)}%
+                          {porcentajeAsistencia(e.totales)}%
                         </td>
                       </>
                     )}

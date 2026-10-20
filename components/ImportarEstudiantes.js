@@ -6,6 +6,7 @@ import { Upload, Download, CheckCircle2, AlertTriangle, FileSpreadsheet } from "
 import { inputClass } from "@/lib/ui";
 import { DNI_REGEX } from "@/lib/validacion";
 import { leerExcel } from "@/lib/excel";
+import { pedir } from "@/lib/peticiones";
 
 // Busca el valor de una fila por varios posibles nombres de columna.
 function campo(fila, claves) {
@@ -67,40 +68,31 @@ export default function ImportarEstudiantes({ aulas }) {
   const validas = filas.filter((f) => f.valido);
 
   async function importar() {
-    if (!aulaId || validas.length === 0) return;
+    if (importando || !aulaId || validas.length === 0) return;
     setImportando(true);
     setError("");
     setResultado(null);
-    try {
-      const res = await fetch("/api/admin/importar-estudiantes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          aulaId,
-          estudiantes: validas.map((f) => ({
-            apellidos: f.apellidos,
-            nombres: f.nombres,
-            dni: f.dni,
-            fechaNacimiento: f.fechaNacimiento || null,
-          })),
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "No se pudo importar.");
-      } else {
-        setResultado(data);
-        setFilas([]);
-        setNombreArchivo("");
-        router.refresh();
-      }
-    } catch {
-      setError("Error de conexión.");
-    } finally {
-      setImportando(false);
+    const data = await pedir("/api/admin/importar-estudiantes", {
+      metodo: "POST",
+      cuerpo: {
+        aulaId,
+        estudiantes: validas.map((f) => ({
+          apellidos: f.apellidos,
+          nombres: f.nombres,
+          dni: f.dni,
+          fechaNacimiento: f.fechaNacimiento || null,
+        })),
+      },
+    });
+    setImportando(false);
+    if (data.error) setError(data.error);
+    else {
+      setResultado(data);
+      setFilas([]);
+      setNombreArchivo("");
+      router.refresh();
     }
   }
-
 
   return (
     <div className="space-y-6">
@@ -231,8 +223,8 @@ export default function ImportarEstudiantes({ aulas }) {
                 {resultado.omitidos.length} omitido(s):
               </p>
               <ul className="mt-2 space-y-1 text-sm text-stone-600">
-                {resultado.omitidos.map((o, i) => (
-                  <li key={i}>
+                {resultado.omitidos.map((o) => (
+                  <li key={o.fila}>
                     Fila {o.fila} (DNI {o.dni || "—"}): {o.motivo}
                   </li>
                 ))}

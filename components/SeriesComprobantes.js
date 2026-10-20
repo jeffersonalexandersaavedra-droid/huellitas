@@ -44,6 +44,11 @@ export default function SeriesComprobantes({ series }) {
 
   return (
     <div className="space-y-4">
+      <p className="rounded-xl bg-white p-4 text-sm text-stone-600 shadow-sm">
+        Cada comprobante lleva una <b>serie</b> (por ejemplo B001) y un <b>número</b> que sube de uno en uno.
+        Normalmente no tienes que cambiar nada aquí: solo si el contador te pide una serie nueva o si vienes de
+        otro sistema y quieres seguir la numeración.
+      </p>
       <div className="overflow-x-auto rounded-xl bg-white shadow-sm">
         <table className="w-full text-left text-sm">
           <thead>
@@ -64,9 +69,11 @@ export default function SeriesComprobantes({ series }) {
                     type="number"
                     min="0"
                     defaultValue={s.ultimo_numero}
+                    aria-label={`Último número de la serie ${s.serie}`}
                     onBlur={(e) => {
-                      const valor = Number(e.target.value);
-                      if (Number.isInteger(valor) && valor >= 0 && valor !== s.ultimo_numero) {
+                      const texto = e.target.value.trim();
+                      const valor = Number(texto);
+                      if (texto && Number.isInteger(valor) && valor >= 0 && valor !== s.ultimo_numero) {
                         guardar(s.serie, { ultimo_numero: valor });
                       }
                     }}
@@ -77,6 +84,7 @@ export default function SeriesComprobantes({ series }) {
                   <input
                     type="checkbox"
                     checked={s.activa}
+                    aria-label={`Serie ${s.serie} activa`}
                     onChange={(e) => guardar(s.serie, { activa: e.target.checked })}
                     className="h-4 w-4 accent-huellitas-primary"
                   />
@@ -87,13 +95,12 @@ export default function SeriesComprobantes({ series }) {
         </table>
       </div>
 
-      <form onSubmit={agregar} className="flex flex-wrap items-end gap-3 rounded-xl bg-white p-4 shadow-sm">
-        <Campo label="Nueva serie">
+      <form onSubmit={agregar} className="flex flex-wrap items-start gap-3 rounded-xl bg-white p-4 shadow-sm">
+        <Campo label="Nueva serie" ayuda={`Ejemplo: ${PREFIJO[nueva.tipo]}`}>
           <input
             value={nueva.serie}
             onChange={(e) => setNueva({ ...nueva, serie: e.target.value.toUpperCase() })}
             maxLength={4}
-            placeholder={PREFIJO[nueva.tipo]}
             className={`${controlClass} w-28`}
           />
         </Campo>
@@ -109,7 +116,7 @@ export default function SeriesComprobantes({ series }) {
         <button
           type="submit"
           disabled={nueva.serie.trim().length !== 4}
-          className="flex items-center gap-1 rounded-lg bg-huellitas-primary px-4 py-2 text-sm font-medium text-white hover:bg-huellitas-primary-dark disabled:opacity-50"
+          className="mt-6 flex items-center gap-1 rounded-lg bg-huellitas-primary px-4 py-2 text-sm font-medium text-white hover:bg-huellitas-primary-dark disabled:opacity-50"
         >
           <Plus className="h-4 w-4" strokeWidth={2} />
           Agregar

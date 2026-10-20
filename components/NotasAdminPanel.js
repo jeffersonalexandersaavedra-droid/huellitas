@@ -41,11 +41,10 @@ export default function NotasAdminPanel({ aulas, anio, areasPorNivel }) {
 
   const aula = aulas.find((a) => a.id === aulaId);
   // Áreas activas del nivel y las desactivadas que aún tienen notas.
-  const areas = useMemo(
-    () =>
-      (areasPorNivel[aula?.nivel] ?? []).filter((a) => a.activo || registro.cursosConNotas.includes(a.nombre)),
-    [areasPorNivel, aula?.nivel, registro.cursosConNotas]
-  );
+  const areas = useMemo(() => {
+    const conNotas = new Set(registro.cursosConNotas);
+    return (areasPorNivel[aula?.nivel] ?? []).filter((a) => a.activo || conNotas.has(a.nombre));
+  }, [areasPorNivel, aula?.nivel, registro.cursosConNotas]);
   const area = areas.find((a) => a.nombre === areaNombre) ?? areas[0];
 
   if (aulas.length === 0) {

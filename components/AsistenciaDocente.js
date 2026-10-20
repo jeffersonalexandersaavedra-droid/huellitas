@@ -13,7 +13,7 @@ import Campo from "@/components/Campo";
 export default function AsistenciaDocente({ aulas }) {
   const supabase = createClient();
   const [aulaId, setAulaId] = useState(aulas[0]?.id ?? "");
-  const [fecha, setFecha] = useState(hoyISO());
+  const [fecha, setFecha] = useState(hoyISO);
   const [estudiantes, setEstudiantes] = useState([]);
   const [marcas, setMarcas] = useState({}); // { matriculaId: estado }
   const [cargando, setCargando] = useState(false);

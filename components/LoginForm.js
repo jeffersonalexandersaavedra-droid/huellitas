@@ -19,11 +19,15 @@ export default function LoginForm() {
     formData.set("identifier", identifier);
     formData.set("password", password);
 
-    const result = await login(formData);
-
-    // Si login() tuvo éxito, ya redirigió y esta línea no se alcanza.
-    if (result?.error) {
-      setError(result.error);
+    // Si login() tiene éxito redirige al portal; si no, devuelve { error }.
+    try {
+      const result = await login(formData);
+      if (result?.error) {
+        setError(result.error);
+        setLoading(false);
+      }
+    } catch {
+      setError("No se pudo conectar. Revisa tu internet e inténtalo de nuevo.");
       setLoading(false);
     }
   }

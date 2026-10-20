@@ -78,11 +78,13 @@ export async function POST(request) {
     }
     estudianteId = fila.id;
 
+    // Apoderados y sus vínculos, cada uno en una sola inserción (las filas
+    // vuelven en el mismo orden en que se enviaron).
     const hayPrincipal = apoderados.some((a) => a.esPrincipal);
-    for (const [index, a] of apoderados.entries()) {
-      const { data: apoderado, error: apoderadoError } = await admin
-        .from("apoderados")
-        .insert({
+    const { data: creados, error: apoderadoError } = await admin
+      .from("apoderados")
+      .insert(
+        apoderados.map((a) => ({
           nombres: a.nombres.trim(),
           apellidos: a.apellidos.trim(),
           dni: limpio(a.dni),
@@ -90,21 +92,22 @@ export async function POST(request) {
           telefono: limpio(a.telefono),
           email: limpio(a.email),
           direccion: limpio(a.direccion),
-        })
-        .select("id")
-        .single();
-      if (apoderadoError || !apoderado) {
-        throw new Error(apoderadoError?.message || "No se pudo registrar al apoderado.");
-      }
-      apoderadoIds.push(apoderado.id);
-
-      const { error: vinculoError } = await admin.from("estudiante_apoderado").insert({
-        estudiante_id: estudianteId,
-        apoderado_id: apoderado.id,
-        es_principal: hayPrincipal ? Boolean(a.esPrincipal) : index === 0,
-      });
-      if (vinculoError) throw new Error(vinculoError.message);
+        }))
+      )
+      .select("id");
+    if (apoderadoError || creados?.length !== apoderados.length) {
+      throw new Error(apoderadoError?.message || "No se pudo registrar a los apoderados.");
     }
+    apoderadoIds.push(...creados.map((a) => a.id));
+
+    const { error: vinculoError } = await admin.from("estudiante_apoderado").insert(
+      apoderados.map((a, posicion) => ({
+        estudiante_id: estudianteId,
+        apoderado_id: creados[posicion].id,
+        es_principal: hayPrincipal ? Boolean(a.esPrincipal) : posicion === 0,
+      }))
+    );
+    if (vinculoError) throw new Error(vinculoError.message);
 
     await crearMatricula(admin, plan, {
       estudianteId,

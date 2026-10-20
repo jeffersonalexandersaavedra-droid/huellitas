@@ -9,6 +9,7 @@ import Avatar from "@/components/Avatar";
 const SECCIONES = [
   { id: "notas", href: "/docente", label: "Notas" },
   { id: "asistencia", href: "/docente/asistencia", label: "Asistencia" },
+  { id: "comunicados", href: "/docente/comunicados", label: "Comunicados" },
   { id: "incidencias", href: "/docente/incidencias", label: "Incidencias" },
   { id: "perfil", href: "/docente/perfil", label: "Mi perfil" },
 ];

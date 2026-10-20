@@ -6,6 +6,7 @@ import Campo from "@/components/Campo";
 import HojaReclamacion from "@/components/HojaReclamacion";
 import ImprimirButton from "@/components/ImprimirButton";
 import { controlClass, inputClass } from "@/lib/ui";
+import { pedir } from "@/lib/peticiones";
 import {
   RECLAMACION_VACIA,
   TIPOS_RECLAMACION,
@@ -35,24 +36,14 @@ export default function FormularioReclamacion() {
     event.preventDefault();
     const problema = errorReclamacion(datos);
     if (problema) return setError(problema);
+    if (enviando) return;
     setEnviando(true);
     setError("");
-    try {
-      const res = await fetch("/api/reclamaciones", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...datos, sitio_web: trampa }),
-      });
-      const r = await res.json();
-      if (r.error) setError(r.error);
-      else {
-        setRegistrada(r);
-        window.scrollTo({ top: 0 });
-      }
-    } catch {
-      setError("No se pudo conectar. Revisa tu internet e inténtalo de nuevo.");
-    }
+    const r = await pedir("/api/reclamaciones", { metodo: "POST", cuerpo: { ...datos, sitio_web: trampa } });
     setEnviando(false);
+    if (r.error) return setError(r.error);
+    setRegistrada(r);
+    window.scrollTo({ top: 0 });
   }
 
   if (registrada) {
