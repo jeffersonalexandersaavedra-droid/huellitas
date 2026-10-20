@@ -52,9 +52,15 @@ export default function PadreDashboard({
     (c) => c.estado === "pendiente" || c.estado === "vencido"
   );
   // Regla de pago en orden: solo se puede pagar la cuota MÁS ANTIGUA que se
-  // debe. Las siguientes quedan bloqueadas hasta pagar la anterior. (El botón
+  // debe. Las siguientes quedan bloqueadas hasta que la anterior esté pagada:
+  // si su voucher está en revisión, esperan a que lo validen. (El botón
   // "Pagar todo" no se ve afectado, para quienes adelantan cuotas.)
-  const cuotaPagableId = siguienteCuotaPorPagar(cuotas)?.id ?? null;
+  const siguiente = siguienteCuotaPorPagar(cuotas);
+  const enRevision = siguiente?.estado === "validando" ? siguiente : null;
+  const cuotaPagableId = enRevision ? null : (siguiente?.id ?? null);
+  const motivoBloqueo = enRevision
+    ? `Estamos revisando tu voucher de ${MESES[enRevision.mes]}. El mes siguiente se libera cuando lo validemos.`
+    : "Para pagar este mes primero debes pagar las pensiones de los meses anteriores.";
   const detalleTotal = cuotasPagables.map(paraPagar);
   // Vouchers rechazados cuya cuota sigue por pagar (si ya se volvió a
   // enviar o se pagó, el aviso desaparece solo).
@@ -164,10 +170,7 @@ export default function PadreDashboard({
           <CuotaDelMes
             cuota={cuotaDelMes}
             mesActual={mesActual}
-            bloqueada={
-              cuotaDelMes.id !== cuotaPagableId &&
-              (cuotaDelMes.estado === "pendiente" || cuotaDelMes.estado === "vencido")
-            }
+            bloqueo={cuotaDelMes.id === cuotaPagableId ? null : motivoBloqueo}
             onPagar={(metodo) => abrirPago(cuotaDelMes, metodo)}
           />
         ) : (
@@ -185,6 +188,12 @@ export default function PadreDashboard({
         <p className="mt-1 text-sm text-stone-500">
           Se pagan en orden: primero la más antigua que debes.
         </p>
+        {enRevision && (
+          <p className="mt-3 flex items-start gap-2 rounded-lg bg-huellitas-accent/10 p-3 text-sm text-huellitas-ink/80">
+            <Lock className="mt-0.5 h-4 w-4 shrink-0 text-huellitas-accent-dark" strokeWidth={2} />
+            {motivoBloqueo}
+          </p>
+        )}
         <div className="mt-2">
           <ListaCuotas
             cuotas={otrasCuotas}
@@ -250,7 +259,8 @@ function paraPagar(cuota) {
   };
 }
 
-function CuotaDelMes({ cuota, mesActual, onPagar, bloqueada = false }) {
+// `bloqueo`: por qué aún no se puede pagar (pago en orden), o null.
+function CuotaDelMes({ cuota, mesActual, onPagar, bloqueo = null }) {
   const { monto, descuentoVigente } = montoACobrar(cuota);
   const vencimiento = cuota.fecha_vencimiento ? aFecha(cuota.fecha_vencimiento) : null;
   const diasRestantes = vencimiento
@@ -308,13 +318,10 @@ function CuotaDelMes({ cuota, mesActual, onPagar, bloqueada = false }) {
       </div>
 
       {(cuota.estado === "pendiente" || cuota.estado === "vencido") &&
-        (bloqueada ? (
+        (bloqueo ? (
           <div className="mt-6 flex items-start gap-2 rounded-lg bg-huellitas-accent/10 p-3 text-sm text-huellitas-ink/80">
             <Lock className="mt-0.5 h-4 w-4 shrink-0 text-huellitas-accent-dark" strokeWidth={2} />
-            <span>
-              Para pagar este mes primero debes pagar las pensiones de los meses
-              anteriores. También puedes usar “Pagar todo lo pendiente”.
-            </span>
+            <span>{bloqueo} También puedes usar “Pagar todo lo pendiente”.</span>
           </div>
         ) : (
           <div className="mt-6 grid grid-cols-2 gap-3">

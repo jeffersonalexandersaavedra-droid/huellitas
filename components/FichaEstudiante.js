@@ -3,6 +3,7 @@ import { FileDown, FileText } from "lucide-react";
 import EstadoBadge from "@/components/EstadoBadge";
 import EstadoCuentaBadge from "@/components/EstadoCuentaBadge";
 import ResetPasswordButton from "@/components/ResetPasswordButton";
+import DescuentosEstudiante from "@/components/DescuentosEstudiante";
 import { MESES, formatFecha } from "@/lib/fecha";
 import { montoACobrar, formatSoles } from "@/lib/cuentas";
 import { BIMESTRES } from "@/lib/cursos";
@@ -229,13 +230,29 @@ function Historico({ historico, estudianteId, primerAnio }) {
 }
 
 // Ficha del estudiante en el panel (datos de lib/ficha.js).
-export default function FichaEstudiante({ estudiante, matricula, apoderados, cuotas, conDeuda, calificadas, conNotas, historico }) {
+export default function FichaEstudiante({
+  estudiante,
+  matricula,
+  apoderados,
+  cuotas,
+  descuentos,
+  puedeDarDescuentos,
+  conDeuda,
+  calificadas,
+  conNotas,
+  historico,
+}) {
   const anio = matricula?.anios_escolares?.anio;
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <Encabezado estudiante={estudiante} matricula={matricula} conDeuda={conDeuda} />
       <DatosEstudiante estudiante={estudiante} matricula={matricula} />
       <Apoderados apoderados={apoderados} />
+      {matricula && (
+        <Seccion titulo={`Descuentos ${anio ?? ""}`}>
+          <DescuentosEstudiante matriculaId={matricula.id} descuentos={descuentos} puedeEditar={puedeDarDescuentos} />
+        </Seccion>
+      )}
       <Cuotas cuotas={cuotas} anio={anio} />
       <Notas calificadas={calificadas} informe={conNotas ? enlaceInforme(estudiante.id, matricula.id) : null} />
       <Historico historico={historico} estudianteId={estudiante.id} primerAnio={matricula ? (anio ?? "este año") : null} />

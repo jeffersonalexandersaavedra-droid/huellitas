@@ -1398,7 +1398,7 @@ alter table pagos add constraint pagos_motivo_rechazo_check
 -- cambia nada, y solo si sigue "validando" (no se revisa dos veces). Al
 -- rechazar se exige el motivo. Reemplaza a validar_pago(uuid, boolean).
 drop function if exists public.validar_pago(uuid, boolean);
-create or replace function public.validar_pago(p_pago uuid, p_aprobar boolean, p_motivo text default null)
+create or replace function public.validar_pago(p_pago uuid, p_aprobar boolean, p_motivo text)
 returns void language plpgsql security invoker set search_path = '' as $$
 declare
   v_ids uuid[];
@@ -1430,3 +1430,79 @@ end;
 $$;
 revoke execute on function public.validar_pago(uuid, boolean, text) from public, anon;
 grant execute on function public.validar_pago(uuid, boolean, text) to authenticated;
+
+-- ============================================================
+-- DESCUENTOS POR ESTUDIANTE  (agregado el 20 de octubre)
+-- ============================================================
+
+-- Descuentos que la dirección otorga a un estudiante para el año de su
+-- matrícula (hermanos, buenas notas u otro motivo). Uno por tipo.
+create table if not exists descuentos_estudiante (
+  id uuid primary key default gen_random_uuid(),
+  matricula_id uuid not null references matriculas(id) on delete cascade,
+  tipo text not null check (tipo in ('hermano', 'rendimiento', 'otro')),
+  monto numeric(10,2) not null check (monto > 0 and monto < 10000),
+  motivo text check (motivo is null or char_length(motivo) between 3 and 200),
+  creado_por uuid default auth.uid() references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  constraint descuentos_estudiante_unico unique (matricula_id, tipo),
+  constraint descuentos_estudiante_motivo_otro check (tipo <> 'otro' or motivo is not null)
+);
+create index if not exists idx_descuentos_estudiante_creado_por on descuentos_estudiante(creado_por);
+
+-- Cuánto de descuento especial tiene ya restado cada pensión.
+alter table cuotas add column if not exists descuento_especial numeric(10,2) not null default 0
+  check (descuento_especial >= 0);
+
+-- Al dar o quitar un descuento, las pensiones aún no pagadas pasan a
+-- restar la suma de los descuentos de la matrícula. Las ya pagadas no
+-- cambian. La pensión con pronto pago debe quedar por encima de S/ 0.
+create or replace function public.aplicar_descuentos_estudiante()
+returns trigger language plpgsql security definer set search_path = '' as $$
+declare
+  v_matricula uuid := coalesce(new.matricula_id, old.matricula_id);
+  v_total numeric(10,2);
+begin
+  select coalesce(sum(monto), 0) into v_total
+    from public.descuentos_estudiante
+   where matricula_id = v_matricula;
+
+  if exists (
+    select 1 from public.cuotas
+     where matricula_id = v_matricula
+       and estado in ('pendiente', 'vencido', 'validando')
+       and coalesce(monto_con_descuento, monto) + descuento_especial - v_total <= 0
+  ) then
+    raise exception 'El descuento es muy alto: la pensión quedaría en S/ 0 o menos.';
+  end if;
+
+  update public.cuotas
+     set monto = monto + descuento_especial - v_total,
+         monto_con_descuento = monto_con_descuento + descuento_especial - v_total,
+         descuento_especial = v_total
+   where matricula_id = v_matricula
+     and estado in ('pendiente', 'vencido', 'validando')
+     and descuento_especial <> v_total;
+  return null;
+end $$;
+revoke execute on function public.aplicar_descuentos_estudiante() from public, anon, authenticated;
+
+create or replace trigger aplicar_descuentos_estudiante
+  after insert or update or delete on public.descuentos_estudiante
+  for each row execute function public.aplicar_descuentos_estudiante();
+
+create or replace trigger auditoria_descuentos_estudiante
+  after insert or update or delete on public.descuentos_estudiante
+  for each row execute function public.registrar_auditoria();
+
+-- Dirección y secretaría los ven; solo la dirección los da o los quita.
+alter table descuentos_estudiante enable row level security;
+drop policy if exists "personal_ve_descuentos" on descuentos_estudiante;
+create policy "personal_ve_descuentos" on descuentos_estudiante for select
+  using (public.rol_actual() in ('admin', 'secretaria'));
+drop policy if exists "admin_da_descuentos" on descuentos_estudiante;
+create policy "admin_da_descuentos" on descuentos_estudiante for insert
+  with check (public.rol_actual() = 'admin');
+drop policy if exists "admin_quita_descuentos" on descuentos_estudiante;
+create policy "admin_quita_descuentos" on descuentos_estudiante for delete
+  using (public.rol_actual() = 'admin');

@@ -6,6 +6,7 @@ import { controlClass } from "@/lib/ui";
 const TABLAS = {
   pagos: "Pagos",
   cuotas: "Pensiones",
+  descuentos_estudiante: "Descuentos",
   notas_curso: "Notas",
   observaciones_estudiante: "Observaciones",
   matriculas: "Matrículas",
