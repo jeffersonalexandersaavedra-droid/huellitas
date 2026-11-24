@@ -15,8 +15,9 @@ import MisComprobantes from "@/components/MisComprobantes";
 import AvisosColegio from "@/components/AvisosColegio";
 import AsistenciaPadre from "@/components/AsistenciaPadre";
 import { MESES, formatFecha, aFecha, diaYMes } from "@/lib/fecha";
-import { montoACobrar, siguienteCuotaPorPagar, cuotasDelPago, formatSoles } from "@/lib/cuentas";
+import { montoACobrar, reglaDePagoEnOrden, cuotasDelPago, formatSoles } from "@/lib/cuentas";
 import EnlaceVoucher from "@/components/EnlaceVoucher";
+import RecordatorioPago from "@/components/RecordatorioPago";
 
 export default function PadreDashboard({
   estudiante,
@@ -33,6 +34,7 @@ export default function PadreDashboard({
   agenda,
   asistencias,
   rechazados,
+  horario,
 }) {
   const router = useRouter();
   const anioActual = matricula.anios_escolares?.anio ?? new Date().getFullYear();
@@ -53,16 +55,10 @@ export default function PadreDashboard({
   const cuotasPagables = cuotas.filter(
     (c) => c.estado === "pendiente" || c.estado === "vencido"
   );
-  // Regla de pago en orden: solo se puede pagar la cuota MÁS ANTIGUA que se
-  // debe. Las siguientes quedan bloqueadas hasta que la anterior esté pagada:
-  // si su voucher está en revisión, esperan a que lo validen. (El botón
-  // "Pagar todo" no se ve afectado, para quienes adelantan cuotas.)
-  const siguiente = siguienteCuotaPorPagar(cuotas);
-  const enRevision = siguiente?.estado === "validando" ? siguiente : null;
-  const cuotaPagableId = enRevision ? null : (siguiente?.id ?? null);
-  const motivoBloqueo = enRevision
-    ? `Estamos revisando tu voucher de ${MESES[enRevision.mes]}. El mes siguiente se libera cuando lo validemos.`
-    : "Para pagar este mes primero debes pagar las pensiones de los meses anteriores.";
+  // Pago en orden (el botón "Pagar todo" no se ve afectado, para quienes
+  // adelantan cuotas).
+  const { cuotaPagable, enRevision, motivoBloqueo } = reglaDePagoEnOrden(cuotas);
+  const cuotaPagableId = cuotaPagable?.id ?? null;
   const detalleTotal = cuotasPagables.map(paraPagar);
   // Vouchers rechazados cuya cuota sigue por pagar (si ya se volvió a
   // enviar o se pagó, el aviso desaparece solo).
@@ -132,6 +128,13 @@ export default function PadreDashboard({
           </p>
         </div>
       ))}
+
+      <RecordatorioPago
+        cuotas={cuotas}
+        horario={horario}
+        cuotaPagable={cuotaPagable}
+        onPagar={abrirPago}
+      />
 
       {/* PERFIL + AVISOS + DOCENTES */}
       <PerfilEstudiante

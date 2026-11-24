@@ -3,8 +3,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import UsuariosManager from "@/components/UsuariosManager";
 import CursosManager from "@/components/CursosManager";
 import AuditoriaLista from "@/components/AuditoriaLista";
+import ServiciosOpcionales from "@/components/ServiciosOpcionales";
 import { ROLES_PERSONAL } from "@/lib/roles";
 import { usuarioSesion } from "@/lib/sesion";
+import { serviciosOpcionales } from "@/lib/servicios";
 
 export const metadata = { title: "Configuración" };
 
@@ -41,11 +43,13 @@ export default async function ConfiguracionPage() {
         Configuración
       </h1>
       <p className="mt-1 text-sm text-stone-500">
-        Cuentas del personal (administradores y secretarias), catálogo de cursos y auditoría.
+        Cuentas del personal (administradores y secretarias), servicios opcionales, catálogo de cursos y
+        auditoría.
       </p>
 
       <div className="mt-6 space-y-6">
         <UsuariosManager usuarios={usuarios} />
+        <ServiciosOpcionales servicios={serviciosOpcionales()} />
         <CursosManager cursos={cursos ?? []} />
         <AuditoriaLista
           registros={(auditoria ?? []).map((r) => ({

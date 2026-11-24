@@ -57,7 +57,7 @@ function indicadores({ matriculas, cuotas, pagos }, ahora) {
 
   return [
     { label: "Estudiantes matriculados", valor: matriculas.length, icon: Users, color: "text-huellitas-primary" },
-    { label: "Con deuda vencida", valor: conDeuda, icon: AlertTriangle, color: "text-rose-600" },
+    { label: "Con deuda vencida", valor: conDeuda, icon: AlertTriangle, color: "text-rose-600", href: "/admin/pagos?tab=recordatorios" },
     { label: `Ingresos de ${MESES[ahora.getMonth() + 1]}`, valor: formatSoles(ingresosMes), icon: TrendingUp, color: "text-emerald-600" },
     { label: "Deuda vencida acumulada", valor: formatSoles(montoVencido(cuotas)), icon: Wallet, color: "text-huellitas-accent-dark" },
     {

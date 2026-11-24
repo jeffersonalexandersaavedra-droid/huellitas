@@ -261,6 +261,7 @@ function Contacto({ contacto, directivos }) {
 }
 
 function TarjetaDirectivo({ directivo: d }) {
+  const whatsapp = waLink(d.telefono, d.nombre?.split(" ")[0]);
   return (
     <div className="rounded-xl border-t-4 border-huellitas-accent bg-white p-6 shadow-sm">
       <div className="flex items-center gap-4">
@@ -288,15 +289,17 @@ function TarjetaDirectivo({ directivo: d }) {
         </p>
       </div>
 
-      <a
-        href={waLink(d.telefono, d.nombre?.split(" ")[0])}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-huellitas-primary py-3 text-sm font-medium text-white transition-colors hover:bg-huellitas-primary-dark"
-      >
-        <MessageCircle className="h-4 w-4" strokeWidth={2} />
-        Escribir por WhatsApp
-      </a>
+      {whatsapp && (
+        <a
+          href={whatsapp}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-huellitas-primary py-3 text-sm font-medium text-white transition-colors hover:bg-huellitas-primary-dark"
+        >
+          <MessageCircle className="h-4 w-4" strokeWidth={2} />
+          Escribir por WhatsApp
+        </a>
+      )}
     </div>
   );
 }

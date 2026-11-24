@@ -16,7 +16,8 @@ cp .env.example .env.local   # y completa las claves (ver comentarios del archiv
 npm run dev                  # http://localhost:3000
 ```
 
-`npm run lint` revisa el código y `npm run build` compila para producción (Vercel).
+`npm run lint` revisa el código, `npm test` corre las pruebas de las reglas de negocio
+(pensiones, recordatorios, roles) y `npm run build` compila para producción (Vercel).
 
 ## Dónde está cada cosa
 
@@ -29,6 +30,7 @@ npm run dev                  # http://localhost:3000
 | `components` | Componentes de la interfaz |
 | `lib` | Reglas y consultas compartidas (sin duplicar en las páginas) |
 | `sql_huellitas.sql` | Registro del esquema de la base de datos y sus cambios |
+| `tests` | Pruebas automáticas de las reglas de negocio (`npm test`) |
 
 ## Base de datos siempre activa
 
@@ -48,3 +50,35 @@ y conclusión descriptiva), igual que el SIAGIE. Las competencias de cada área 
   recibe el mismo archivo con las notas guardadas en el portal, listo para subirlo.
 - **Boleta preventiva**: vista previa del Informe de progreso; el informe oficial con firma
   y sello se solicita en la institución.
+
+## Recordatorios de pago
+
+- **Portal del padre**: aviso de pensiones atrasadas o por vencer (5 días antes), con el
+  horario de secretaría que se edita en Menú principal.
+- **Pagos › Recordatorios**: familias con deuda o pensión por vencer. El botón WhatsApp es
+  gratis ("clic para chatear": abre WhatsApp con el mensaje escrito).
+- **Envío automático** (`/api/recordatorios`, días 5 y 25 a las 9 a. m.): por correo (Resend)
+  o WhatsApp Business (Meta), solo si esos servicios están configurados.
+
+## Servicios opcionales (listos para activar)
+
+El código ya está en el sistema; cada servicio se activa al crear la cuenta del proveedor,
+poner sus claves en Vercel y volver a publicar. Su estado se ve en **Configuración ›
+Servicios opcionales**.
+
+| Servicio | Proveedor | Variables |
+| --- | --- | --- |
+| Boletas y facturas electrónicas automáticas | Nubefact | `NUBEFACT_RUTA`, `NUBEFACT_TOKEN` |
+| Correos (recordatorios, reclamaciones) | Resend | `RESEND_API_KEY`, `RESEND_FROM` |
+| WhatsApp automático | WhatsApp Business (Meta) | `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_ID`, `WHATSAPP_PLANTILLA` |
+| Autocompletar por DNI/RUC | Decolecta | `DECOLECTA_TOKEN` |
+| Contacto de soporte en Ayuda | — | `SOPORTE_NOMBRE`, `SOPORTE_WHATSAPP`, `SOPORTE_CORREO` |
+
+Plantilla sugerida para WhatsApp Business (categoría "Utilidad"): *Hola {{1}}, le saluda la
+I.E.P. Huellitas. Le recordamos que {{2}} tiene pendiente {{3}}. Puede pagar desde el portal
+de padres o en secretaría. Si ya pagó, ignore este mensaje.*
+
+## Ayuda y capacitación
+
+**Ayuda** (menú del panel y del portal docente) reúne guías paso a paso de cada tarea y el
+contacto de soporte técnico.

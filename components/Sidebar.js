@@ -18,6 +18,7 @@ import {
   Globe,
   BookOpenText,
   Settings,
+  LifeBuoy,
   X,
 } from "lucide-react";
 import LogoutButton from "@/components/LogoutButton";
@@ -38,6 +39,7 @@ const NAV_ITEMS = [
   { href: "/admin/pagina", label: "Menú principal", icon: Globe },
   { href: "/admin/reclamaciones", label: "Reclamaciones", icon: BookOpenText },
   { href: "/admin/configuracion", label: "Configuración", icon: Settings },
+  { href: "/admin/ayuda", label: "Ayuda", icon: LifeBuoy },
 ];
 
 export default function Sidebar({ rol, open = false, onClose = () => {} }) {

@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { areasPorNivel, comunicadosRecientes } from "@/lib/consultas";
+import { areasPorNivel, comunicadosRecientes, horarioAtencion } from "@/lib/consultas";
 import { estudianteActual, matriculaActual } from "@/lib/sesion";
 import { hoyISO, haceDias } from "@/lib/fecha";
 import { enlacesDeArchivos } from "@/lib/emision";
@@ -43,6 +43,7 @@ export default async function PadrePage() {
     { data: asistencias },
     { data: rechazados },
     vouchers,
+    horario,
   ] = await Promise.all([
     supabase
       .from("cuotas")
@@ -86,6 +87,7 @@ export default async function PadrePage() {
       .gte("fecha_validacion", haceDias(DIAS_RECHAZO_VISIBLE).toISOString())
       .order("fecha_validacion", { ascending: false }),
     vouchersPorCuota(supabase, matricula.id),
+    horarioAtencion(supabase),
   ]);
   const enlaces = await enlacesDeArchivos(comprobantes ?? []);
   const desdeNuevo = haceDias(DIAS_AVISO_NUEVO);
@@ -106,6 +108,7 @@ export default async function PadrePage() {
       agenda={agenda ?? []}
       asistencias={asistencias ?? []}
       rechazados={rechazados ?? []}
+      horario={horario}
     />
   );
 }

@@ -13,6 +13,7 @@ const SECCIONES = [
   { id: "comunicados", href: "/docente/comunicados", label: "Comunicados" },
   { id: "incidencias", href: "/docente/incidencias", label: "Incidencias" },
   { id: "perfil", href: "/docente/perfil", label: "Mi perfil" },
+  { id: "ayuda", href: "/docente/ayuda", label: "Ayuda" },
 ];
 
 // El proxy ya garantiza que aquí solo entran docentes.
